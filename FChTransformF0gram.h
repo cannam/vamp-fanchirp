@@ -129,7 +129,6 @@ protected:
         double fs_warp; // sampling frequency of warped signal
         double *chirp_rates; // chirp rates
         int nsamps_torig; // number of samples of the original signal frame
-        int fact_over_samp; // oversampling factor (use instead warp_params.fact_over_samp)
         int *pos_int; // index of previous sample to do the warping by interpolation efficiently
         double *pos_frac; // fractional value to do the warping by interpolation efficiently
     } warping_design;
