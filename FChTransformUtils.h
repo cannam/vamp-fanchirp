@@ -17,10 +17,10 @@
 
 #include <string.h>
 
-void interp1(const double *x1,const double *y1, size_t N1, const double *x2, double *y2, size_t N2);
+void interp1(const double *x1,const double *y1, int N1, const double *x2, double *y2, int N2);
 
-void interp1q(const double *y1, const size_t *x2_int, const double *x2_frac, double *y2, size_t N2);
+void interp1q(const double *y1, const int *x2_int, const double *x2_frac, double *y2, int N2);
 
-void cumtrapz(const double *x, const double *y, size_t N, double *accum);
+void cumtrapz(const double *x, const double *y, int N, double *accum);
 
-void hanning_window(double *p_window, size_t n, bool normalize);
+void hanning_window(double *p_window, int n, bool normalize);

@@ -70,8 +70,8 @@ public:
 protected:
 
     string m_currentProgram;
-    size_t m_stepSize;
-    size_t m_blockSize;
+    int m_stepSize;
+    int m_blockSize;
     float m_fs; // input sampling rate (inputSampleRate)
 
     // plugin-specific data and methods go here
@@ -79,18 +79,18 @@ protected:
     // =============  WARPING PARAMETERS  =============
 
     double m_fmax; // maximum frequency of interest (Hz)
-    size_t m_nfft; // number of fft points (controls zero-padding)
-    size_t m_hop; // hop in samples in the upsampled signal
-    size_t m_num_f0s; // number of f0 values in F0gram grid
+    int m_nfft; // number of fft points (controls zero-padding)
+    int m_hop; // hop in samples in the upsampled signal
+    int m_num_f0s; // number of f0 values in F0gram grid
     //vector<float> m_f0s;    // vector of f0 values
     double *m_f0s; // vector of f0 values
 
     typedef struct {
-        size_t nsamps_twarp; // number of samples of the warped signal frame
+        int nsamps_twarp; // number of samples of the warped signal frame
         double alpha_max; // maximum value of normalized frequency deviation (alpha)
-        size_t num_warps; // number of warpings
-        size_t fact_over_samp; // oversampling factor
-        size_t alpha_dist; // distribution of alpha values, 'lin' or 'log' (0 - 1)
+        int num_warps; // number of warpings
+        int fact_over_samp; // oversampling factor
+        int alpha_dist; // distribution of alpha values, 'lin' or 'log' (0 - 1)
     } warping_parameters;
 
     warping_parameters m_warp_params;
@@ -99,12 +99,12 @@ protected:
 
     typedef struct {
         double f0min; // minimun fundamental frequency
-        size_t num_octs; // number of octaves
-        size_t num_f0s_per_oct; // number of f0s per octave
-        size_t num_f0_hyps; // number of f0 hypotesis to extract
+        int num_octs; // number of octaves
+        int num_f0s_per_oct; // number of f0s per octave
+        int num_f0_hyps; // number of f0 hypotesis to extract
         bool prefer; // whether to use a f0 preference guassian function
-        size_t prefer_mean; // mean of f0 preference function (MIDI number for C4)
-        size_t prefer_stdev; // stdev of f0 preference function (stdev in MIDI numbers)
+        int prefer_mean; // mean of f0 preference function (MIDI number for C4)
+        int prefer_stdev; // stdev of f0 preference function (stdev in MIDI numbers)
     } f0_parameters;
 
     f0_parameters m_f0_params;
@@ -128,9 +128,9 @@ protected:
         double fs_orig; // sampling frequency after oversampling
         double fs_warp; // sampling frequency of warped signal
         double *chirp_rates; // chirp rates
-        size_t nsamps_torig; // number of samples of the original signal frame
-        size_t fact_over_samp; // oversampling factor (use instead warp_params.fact_over_samp)
-        size_t *pos_int; // index of previous sample to do the warping by interpolation efficiently
+        int nsamps_torig; // number of samples of the original signal frame
+        int fact_over_samp; // oversampling factor (use instead warp_params.fact_over_samp)
+        int *pos_int; // index of previous sample to do the warping by interpolation efficiently
         double *pos_frac; // fractional value to do the warping by interpolation efficiently
     } warping_design;
 
@@ -154,18 +154,18 @@ protected:
     // GLogS
     double *m_glogs_f0;
     double *m_glogs;
-    size_t *m_glogs_n;
-    size_t *m_glogs_index;
-    size_t *m_glogs_posint;
+    int *m_glogs_n;
+    int *m_glogs_index;
+    int *m_glogs_posint;
     double *m_glogs_posfrac;
     double *m_glogs_interp;
-    size_t m_glogs_harmonic_count;
-    size_t m_glogs_num_f0s;
-    size_t m_glogs_init_f0s;
-    size_t *m_glogs_third_harmonic_posint;
+    int m_glogs_harmonic_count;
+    int m_glogs_num_f0s;
+    int m_glogs_init_f0s;
+    int *m_glogs_third_harmonic_posint;
     double *m_glogs_third_harmonic_posfrac;
     double *m_glogs_third_harmonic;
-    size_t *m_glogs_fifth_harmonic_posint;
+    int *m_glogs_fifth_harmonic_posint;
     double *m_glogs_fifth_harmonic_posfrac;
     double *m_glogs_fifth_harmonic;
     double *m_glogs_f0_preference_weights;
