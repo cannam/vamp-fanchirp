@@ -760,14 +760,6 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
     double *pos1 = new double[m_warp_params.nsamps_twarp*m_warp_params.num_warps];
 	
     for (size_t i = 0; i < m_warp_params.num_warps; i++) {
-        // vector of phase values
-        //    float * phi;
-        // integration of relative frequency to obtain phase values
-        // phi = cumtrapz(t_orig,freq_relative(:,i)');
-        // centering of phase values to force original frequency in the middle
-        //phi = phi - phi(end/2);
-        // interpolation of phase values to obtain warped positions
-        //pos1(i,:) = interp1(phi,t_orig,t_warp)*fs_orig + length(t_orig)/2;
 		
         // integration of relative frequency to obtain phase values
         cumtrapz(t_orig, freq_relative + i*(m_warpings.nsamps_torig), m_warpings.nsamps_torig, phi);
@@ -780,7 +772,6 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
 
         // interpolation of phase values to obtain warped positions
         interp1(phi, t_orig, m_warpings.nsamps_torig, t_warp, pos1 + i*m_warp_params.nsamps_twarp, m_warp_params.nsamps_twarp);
-		
     }
 
     // % previous sample index
@@ -790,7 +781,6 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
     // % fractional value that defines the warped position
     // warps.pos1_frac = (double(pos1)' - double(pos1_int));
 
-    // m_warpings.pos_int = new size_t[m_warp_params.num_warps * m_warp_params.nsamps_twarp];
     for (size_t j = 0; j < m_warp_params.nsamps_twarp*m_warp_params.num_warps; j++) {
         // previous sample index
         pos1[j] = pos1[j]*m_warpings.fs_orig + m_warpings.nsamps_torig/2 + 1;
