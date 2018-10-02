@@ -28,8 +28,6 @@ m_currentProgram("default"),
 m_stepSize(0), // We are using 0 for step and block size to indicate "not yet set".
 m_blockSize(0) {
 
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
-
     m_fs = inputSampleRate;
     // max frequency of interest (Hz)
     m_fmax = 10000.f;
@@ -344,8 +342,6 @@ FChTransformF0gram::getParameterDescriptors() const {
 float
 FChTransformF0gram::getParameter(string identifier) const {
 
-    printf("FUNCTION CALL: %s(%s)\n", __FUNCTION__, identifier.c_str());
-
     if (identifier == "fmax") {
         return m_fmax;
     } else if (identifier == "nsamp") {
@@ -381,8 +377,6 @@ FChTransformF0gram::getParameter(string identifier) const {
 }
 
 void FChTransformF0gram::setParameter(string identifier, float value) {
-
-    printf("FUNCTION CALL: %s(%s) = %f.\n", __FUNCTION__, identifier.c_str(), value);
 
     if (identifier == "fmax") {
         m_fmax = value;
@@ -433,8 +427,6 @@ FChTransformF0gram::getCurrentProgram() const {
 void
 FChTransformF0gram::selectProgram(string name) {
 
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
-
     m_currentProgram = name;
 
     if (name == "default") {
@@ -478,8 +470,6 @@ FChTransformF0gram::selectProgram(string name) {
 FChTransformF0gram::OutputList
 FChTransformF0gram::getOutputDescriptors() const {
 
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
-
     OutputList list;
 
     // See OutputDescriptor documentation for the possibilities here.
@@ -522,8 +512,6 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     if (channels < getMinChannelCount() ||
             channels > getMaxChannelCount()) return false;
 
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
-
     // set blockSize and stepSize (but changed below)
     m_blockSize = blockSize;
     m_stepSize = stepSize;
@@ -556,13 +544,11 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
 	bool normalize = false;
 	hanning_window(mp_HanningWindow, m_warp_params.nsamps_twarp, normalize);
 
-	printf("	End of initialise().\n");
     return true;
 }
 
 void
 FChTransformF0gram::design_GLogS() {
-	printf("	Running design_GLogS().\n");
 
 	// total number & initial quantity of f0s
 	m_glogs_init_f0s = (size_t)(((double)m_f0_params.num_f0s_per_oct)*log2(5.0))+1;
@@ -609,7 +595,6 @@ FChTransformF0gram::design_GLogS() {
 	m_glogs_third_harmonic_posfrac = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
 	for (size_t i = 0; i < (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct; i++) {
 		aux_third_harmonic = (double)i + (double)m_glogs_init_f0s - ((double)m_f0_params.num_f0s_per_oct)*log2(3.0);
-			//printf("	aux_third_harmonic = %f.\n", aux_third_harmonic);
 		m_glogs_third_harmonic_posint[i] = (size_t)aux_third_harmonic;
 		m_glogs_third_harmonic_posfrac[i] = aux_third_harmonic - (double)(m_glogs_third_harmonic_posint[i]);
 	}
@@ -621,7 +606,6 @@ FChTransformF0gram::design_GLogS() {
 	m_glogs_fifth_harmonic_posfrac = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
 	for (size_t i = 0; i < (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct; i++) {
 		aux_fifth_harmonic = (double)i + (double)m_glogs_init_f0s - ((double)m_f0_params.num_f0s_per_oct)*log2(5.0);
-			//printf("	aux_fifth_harmonic = %f.\n", aux_fifth_harmonic);
 		m_glogs_fifth_harmonic_posint[i] = (size_t)aux_fifth_harmonic;
 		m_glogs_fifth_harmonic_posfrac[i] = aux_fifth_harmonic - (double)(m_glogs_fifth_harmonic_posint[i]);
 	}
@@ -651,15 +635,10 @@ FChTransformF0gram::design_GLogS() {
 			m_glogs_hf_smoothing_window[i] = ((double)i - (double)m_warp_params.nsamps_twarp/2.0)*(-1.0/((double)(m_warp_params.nsamps_twarp/2+1)-smooth_aux));
 		}
 	}
-
-	printf("	End of design_GLogS().\n");
-	
 }
 
 void
 FChTransformF0gram::design_FFT() {
-	printf("	Running design_FFT().\n");
-
     in = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * m_nfft);
     out = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * m_nfft);
 	//TODO verificar que el tipo de datos de in_window es del tipo double, era float.
@@ -673,7 +652,6 @@ FChTransformF0gram::design_FFT() {
 void
 FChTransformF0gram::design_FChT() {
 
-	printf("	Running design_FChT().\n");
     /*
      * FILES FOR DEBUGGING
      */
@@ -760,8 +738,6 @@ FChTransformF0gram::design_FChT() {
 	m_auxFanChirpTransform = (fftw_complex*)fftw_malloc(sizeof ( fftw_complex) * (m_warp_params.nsamps_twarp/2 + 1));
 	plan_forward_xwarping = fftw_plan_dft_r2c_1d(m_warp_params.nsamps_twarp, x_warping, m_auxFanChirpTransform, FFTW_ESTIMATE);
 
-	printf("	End of design_FChT().\n");
-
 }
 
 void
@@ -771,7 +747,6 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
        instants are stored in a structure as an integer index and a fractional value
        hypothesis: sampling frequency at the central point equals the original
      */
-	printf("	Running design_warps().\n");
 
     m_warpings.pos_int = new size_t[m_warp_params.num_warps * m_warp_params.nsamps_twarp];
 	m_warpings.pos_frac = new double[m_warp_params.num_warps * m_warp_params.nsamps_twarp];
@@ -824,9 +799,6 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
 
 	delete [] phi;
 	delete [] pos1;
-
-	printf("	End of design_warps().\n");
-
 }
 
 void
@@ -835,8 +807,6 @@ FChTransformF0gram::define_warps_linear_chirps(double * freq_relative, double * 
                  t_orig : time vector
           freq_relative : relative frequency deviations
      */
-	printf("	Running define_warps_linear_chirps().\n");
-
     if (m_warp_params.alpha_dist == 0) {
 
         // linear alpha values spacing
@@ -882,15 +852,11 @@ FChTransformF0gram::define_warps_linear_chirps(double * freq_relative, double * 
             freq_relative[j * m_warpings.nsamps_torig + i] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
     //freq_relative[i * m_warpings.nsamps_torig + j] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
     //freq_relative[i][j] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
-
-	printf("	End of define_warps_linear_chirps().\n");
-
 }
 
 void
 FChTransformF0gram::design_LPF() {
 
-	printf("	Running design_LPF().\n");
     //    in = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * tamanoVentana);
     //    out = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * tamanoVentana);
     //    in_window = (float*) fftw_malloc(sizeof (float) * tamanoVentana);
@@ -899,7 +865,6 @@ FChTransformF0gram::design_LPF() {
     mp_LPFWindow = new double[m_blockSize/2+1];
     
     size_t i_max = (size_t) ((2.0*m_fmax/m_fs) * ( (double)m_blockSize / 2.0 + 1.0 ));
-	//printf("	i_max = %d.\n", (int)i_max);
     for (size_t i = 0; i < m_blockSize/2+1; i++) {
         if (i >= i_max) {
             lp_LPFWindow_aux[i] = 0.0;
@@ -939,18 +904,15 @@ FChTransformF0gram::design_LPF() {
     }
     for (size_t i = 0; i < winWidth; i++) { //window normalization
         lp_hanningWindow[i]=lp_hanningWindow[i]/accum;
-			//printf("	lp_hanningWindow[%d] = %f.\n",(int)i,lp_hanningWindow[i]);
     }
     for (size_t i = 0; i < m_blockSize/2+1; i++) {
         //if (((i-(winWidth-1)/2)<0)||(i+(winWidth-1))/2>m_blockSize/2-1) {//consideramos winWidth impar, si la ventana sale del arreglo se rellena con el valor origianl
 		if ( (i > (i_max + (winWidth-1)/2)) ||  (i <= (i_max - (winWidth-1)/2)) ) {
             mp_LPFWindow[i]=lp_LPFWindow_aux[i];
-			//printf("	entro al if en i=%d.\n",(int)i);
         } else {
             accum=0;
         	for (size_t j = -((winWidth-1)/2); j <= (winWidth-1)/2; j++) {
             	accum+=lp_LPFWindow_aux[i-j]*lp_hanningWindow[j+(winWidth-1)/2];
-				//printf("	accum = %f.\n",accum);
         	}
             mp_LPFWindow[i]=accum;
         }
@@ -958,8 +920,6 @@ FChTransformF0gram::design_LPF() {
 
     delete[] lp_LPFWindow_aux;
     delete[] lp_hanningWindow;
-
-	printf("	End of design_LPF().\n");
 }
 
 void FChTransformF0gram::apply_LPF() {
@@ -985,7 +945,6 @@ void FChTransformF0gram::clean_LPF() {
 
 void FChTransformF0gram::reset() {
 
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
     // Clear buffers, reset stored values, etc
 
 	delete [] m_warpings.pos_int;
@@ -1029,8 +988,6 @@ void FChTransformF0gram::reset() {
 
 FChTransformF0gram::FeatureSet
 FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
-
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
 
     //    // Do actual work!
     //
@@ -1144,7 +1101,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 			}
 			m_glogs[i + i_warp*m_glogs_num_f0s] = glogs_accum/(double)m_glogs_n[i];
 		}
-		//printf("	glogs_ind = %d.\n",(int)glogs_ind);
 
 //		Sub/super harmonic correction
 		interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_third_harmonic_posint, m_glogs_third_harmonic_posfrac, m_glogs_third_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
@@ -1213,16 +1169,11 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
 FChTransformF0gram::FeatureSet
 FChTransformF0gram::getRemainingFeatures() {
-
-    printf("FUNCTION CALL: %s\n", __FUNCTION__);
-
     return FeatureSet();
 }
 
 void
 FChTransformF0gram::design_time_window() {
-
-	printf("	Running design_time_window().\n");
 
 	size_t transitionWidth = (size_t)m_blockSize/128 + 1;;
     m_timeWindow = new double[m_blockSize];
@@ -1251,7 +1202,5 @@ FChTransformF0gram::design_time_window() {
 	#endif
 
 	delete [] lp_transitionWindow;
-
-	printf("	End of design_time_window().\n");
 }
 
