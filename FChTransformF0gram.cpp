@@ -1028,7 +1028,7 @@ void FChTransformF0gram::reset() {
 }
 
 FChTransformF0gram::FeatureSet
-FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime timestamp) {
+FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
     printf("FUNCTION CALL: %s\n", __FUNCTION__);
 
