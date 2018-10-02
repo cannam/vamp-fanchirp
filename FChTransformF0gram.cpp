@@ -33,7 +33,7 @@ FChTransformF0gram::FChTransformF0gram(float inputSampleRate) :
     // max frequency of interest (Hz)
     m_fmax = 10000.f;
     // warping parameters
-    m_warp_params.nsamps_twarp   = 2048;
+    m_warp_params.nsamps_twarp = 2048;
     //m_warp_params.nsamps_twarp = 8;
     m_warp_params.alpha_max = 4;
     m_warp_params.num_warps = 21;
@@ -531,10 +531,7 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     design_GLogS();
 
     /* design of FChT */
-    // design_fcht(m_warps, m_accums, m_f0s)
     design_FChT();
-
-    design_FFT();
 
     design_LPF();
 
@@ -636,18 +633,6 @@ FChTransformF0gram::design_GLogS() {
             m_glogs_hf_smoothing_window[i] = ((double)i - (double)m_warp_params.nsamps_twarp/2.0)*(-1.0/((double)(m_warp_params.nsamps_twarp/2+1)-smooth_aux));
         }
     }
-}
-
-void
-FChTransformF0gram::design_FFT() {
-    in = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * m_nfft);
-    out = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * m_nfft);
-    //TODO verificar que el tipo de datos de in_window es del tipo double, era float.
-    in_window = (double*) fftw_malloc(sizeof (double) * m_nfft);
-    planFFT = fftw_plan_dft_1d(m_nfft, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-
-    //TODO hacer diseño del FFT para el filtrado pasabajos.
-
 }
 
 void
@@ -941,10 +926,6 @@ void FChTransformF0gram::reset() {
     delete [] m_warpings.pos_int;
     delete [] m_warpings.pos_frac;
 
-    fftw_destroy_plan(planFFT);
-    fftw_free(in); 
-    fftw_free(out);
-
     clean_LPF();
 
     delete [] m_timeWindow;
@@ -1028,31 +1009,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
     Feature feature;
     feature.hasTimestamp = false;
-
-
-    /* Solo a modo de prueba, voy a poner la salida del filtrado en «in» y
-       voy a mostrar la FFT de eso, para ver el efecto del filtrado. */
-//    for (int i = 0; i < m_nfft; i++) {
-//        in[i][0] = tbuf[i];
-//        in[i][1] = 0;
-//    }
-//	fftw_execute(planFFT);
-//	double real, imag;
-//	for (int i=0; i<n; ++i) {		// preincremento?? ver version de nacho
-//		real = out[i][0];
-//		imag = out[i][1];
-//		feature.values.push_back(real*real + imag*imag);
-//	}
-//	fs[0].push_back(feature);
-
-//	float real; 
-//	float imag;
-//	for (int i=0; i<m_blockSize/2+1; i++) {
-//		real = (float)(LPF_frequency[i][0]);
-//		imag = (float)(LPF_frequency[i][1]);
-//		feature.values.push_back(real*real+imag*imag);
-//		//feature.values.push_back((float)(mp_LPFWindow[i]));
-//	}
 
 // ----------------------------------------------------------------------------------------------
 // 		Hanning window & FFT for all warp directions

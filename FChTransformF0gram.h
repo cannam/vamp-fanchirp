@@ -16,8 +16,8 @@
 */
 
 // Remember to use a different guard symbol in each header!
-#ifndef _FCHTRANSFORMF0GRAM_H_
-#define _FCHTRANSFORMF0GRAM_H_
+#ifndef FCHTRANSFORMF0GRAM_H
+#define FCHTRANSFORMF0GRAM_H
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -179,14 +179,7 @@ protected:
     void design_LPF();
     void clean_LPF();
     void apply_LPF();
-    void design_FFT();
     void design_time_window();
-
-    // FFT variables
-    fftw_complex *in, *out;
-    //TODO verificar que el tipo de datos de in_window es del tipo double, era del tipo float.
-    double *in_window;
-    fftw_plan planFFT;
 };
 
 
