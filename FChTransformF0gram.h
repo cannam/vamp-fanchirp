@@ -13,11 +13,12 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 // Remember to use a different guard symbol in each header!
 #ifndef _FCHTRANSFORMF0GRAM_H_
 #define _FCHTRANSFORMF0GRAM_H_
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <vamp-sdk/Plugin.h>
@@ -62,7 +63,7 @@ public:
     void reset();
 
     FeatureSet process(const float *const *inputBuffers,
-            Vamp::RealTime timestamp);
+                       Vamp::RealTime timestamp);
 
     FeatureSet getRemainingFeatures();
 
@@ -107,7 +108,7 @@ protected:
     } f0_parameters;
 
     f0_parameters m_f0_params;
-	bool m_f0gram_mode;
+    bool m_f0gram_mode;
 
     // ======== GATHERED LOG SPECTRUM PARAMETERS =======
 
@@ -140,53 +141,53 @@ protected:
     fftw_complex *LPF_frequency;
     fftw_plan plan_backward_LPF;
     fftw_plan plan_forward_LPF;
-	// timeWindow
-	double *m_timeWindow;
-	// Warpings
-	double *x_warping;
-	// Hanning window
-	double *mp_HanningWindow;
-	// FChT plan & transformed data structs
-	double *m_absFanChirpTransform;
-	fftw_complex *m_auxFanChirpTransform;
-	fftw_plan plan_forward_xwarping;
-	// GLogS
-	double *m_glogs_f0;
-	double *m_glogs;
-	size_t *m_glogs_n;
-	size_t *m_glogs_index;
-	size_t *m_glogs_posint;
-	double *m_glogs_posfrac;
-	double *m_glogs_interp;
-	size_t m_glogs_harmonic_count;
-	size_t m_glogs_num_f0s;
-	size_t m_glogs_init_f0s;
-	size_t *m_glogs_third_harmonic_posint;
-	double *m_glogs_third_harmonic_posfrac;
-	double *m_glogs_third_harmonic;
-	size_t *m_glogs_fifth_harmonic_posint;
-	double *m_glogs_fifth_harmonic_posfrac;
-	double *m_glogs_fifth_harmonic;
-	double *m_glogs_f0_preference_weights;
-	double *m_glogs_median_correction;
-	double *m_glogs_sigma_correction;
-	double *m_glogs_hf_smoothing_window;
+    // timeWindow
+    double *m_timeWindow;
+    // Warpings
+    double *x_warping;
+    // Hanning window
+    double *mp_HanningWindow;
+    // FChT plan & transformed data structs
+    double *m_absFanChirpTransform;
+    fftw_complex *m_auxFanChirpTransform;
+    fftw_plan plan_forward_xwarping;
+    // GLogS
+    double *m_glogs_f0;
+    double *m_glogs;
+    size_t *m_glogs_n;
+    size_t *m_glogs_index;
+    size_t *m_glogs_posint;
+    double *m_glogs_posfrac;
+    double *m_glogs_interp;
+    size_t m_glogs_harmonic_count;
+    size_t m_glogs_num_f0s;
+    size_t m_glogs_init_f0s;
+    size_t *m_glogs_third_harmonic_posint;
+    double *m_glogs_third_harmonic_posfrac;
+    double *m_glogs_third_harmonic;
+    size_t *m_glogs_fifth_harmonic_posint;
+    double *m_glogs_fifth_harmonic_posfrac;
+    double *m_glogs_fifth_harmonic;
+    double *m_glogs_f0_preference_weights;
+    double *m_glogs_median_correction;
+    double *m_glogs_sigma_correction;
+    double *m_glogs_hf_smoothing_window;
     // auxiliar methods
-	void design_GLogS();
+    void design_GLogS();
     void design_FChT();
     void define_warps_linear_chirps(double *, double *);
     void design_warps(double *, double *, double *);
     void design_LPF();
     void clean_LPF();
     void apply_LPF();
-	void design_FFT();
-	void design_time_window();
+    void design_FFT();
+    void design_time_window();
 
-	// FFT variables
-	fftw_complex *in, *out;
-	//TODO verificar que el tipo de datos de in_window es del tipo double, era del tipo float.
-	double *in_window;
-	fftw_plan planFFT;
+    // FFT variables
+    fftw_complex *in, *out;
+    //TODO verificar que el tipo de datos de in_window es del tipo double, era del tipo float.
+    double *in_window;
+    fftw_plan planFFT;
 };
 
 
