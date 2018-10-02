@@ -17,16 +17,11 @@ RANLIB		= $(TOOLPREFIX)ranlib
 
 # For a debug build...
 
-CFLAGS		:= -Wall -Wextra -g
+#CFLAGS		:= -Wall -Wextra -g
 
 # ... or for a release build
 
-#CFLAGS		:= -Wall -Wextra -O3 -ftree-vectorize
-
-
-# Location of Vamp plugin SDK relative to the project directory
-
-VAMPSDK_DIR	:= ../vamp-plugin-sdk
+CFLAGS		:= -Wall -Wextra -O3 -ftree-vectorize
 
 
 # Libraries and linker flags required by plugin: add any -l<library>

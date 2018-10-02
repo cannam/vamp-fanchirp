@@ -15,12 +15,26 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef FCHTRANSFORMUTILS_H
+#define FCHTRANSFORMUTILS_H
+
 #include <string.h>
 
-void interp1(const double *x1,const double *y1, int N1, const double *x2, double *y2, int N2);
+class Utils
+{
+public:
+    static void interp1(const double *x1,const double *y1, int N1, const double *x2, double *y2, int N2);
 
-void interp1q(const double *y1, const int *x2_int, const double *x2_frac, double *y2, int N2);
+    static void interp1q(const double *y1, const int *x2_int, const double *x2_frac, double *y2, int N2){
+        for(int i=0;i<N2;i++){
+            y2[i] = y1[x2_int[i]]*(1.0-x2_frac[i])+y1[x2_int[i]+1]*x2_frac[i];
+        } // for
+    }
 
-void cumtrapz(const double *x, const double *y, int N, double *accum);
+    static void cumtrapz(const double *x, const double *y, int N, double *accum);
 
-void hanning_window(double *p_window, int n, bool normalize);
+    static void hanning_window(double *p_window, int n, bool normalize);
+};
+
+#endif
+

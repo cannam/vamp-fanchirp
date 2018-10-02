@@ -19,6 +19,11 @@
 #include "FChTransformUtils.h"
 #include <math.h>
 #include <float.h>
+
+#include "bqvec/Allocators.h"
+
+using namespace breakfastquay;
+
 //#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
@@ -71,8 +76,45 @@ FChTransformF0gram::FChTransformF0gram(float inputSampleRate) :
 
 }
 
-FChTransformF0gram::~FChTransformF0gram() {
-    // remeber to delete everything that deserves to
+FChTransformF0gram::~FChTransformF0gram()
+{
+    if (!m_blockSize) {
+        return; // nothing was allocated
+    }
+
+    deallocate(m_warpings.pos_int);
+    deallocate(m_warpings.pos_frac);
+    deallocate(m_warpings.chirp_rates);
+
+    clean_LPF();
+
+    deallocate(m_timeWindow);
+
+    deallocate(mp_HanningWindow);
+    
+    // Warping
+    deallocate(x_warping);
+    delete fft_xwarping;
+    deallocate(m_absFanChirpTransform); 
+    deallocate(m_auxFanChirpTransform);
+
+    // design_GLogS
+    deallocate(m_glogs_f0);
+    deallocate(m_glogs);
+    deallocate(m_glogs_n);
+    deallocate(m_glogs_index);
+    deallocate(m_glogs_posint);
+    deallocate(m_glogs_posfrac);
+    deallocate(m_glogs_interp);
+    deallocate(m_glogs_third_harmonic_posint);
+    deallocate(m_glogs_third_harmonic_posfrac);
+    deallocate(m_glogs_third_harmonic);
+    deallocate(m_glogs_fifth_harmonic_posint);
+    deallocate(m_glogs_fifth_harmonic_posfrac);
+    deallocate(m_glogs_fifth_harmonic);
+    deallocate(m_glogs_f0_preference_weights);
+    deallocate(m_glogs_median_correction);
+    deallocate(m_glogs_sigma_correction);
 }
 
 string
@@ -479,7 +521,7 @@ FChTransformF0gram::getOutputDescriptors() const {
     /* f0 values of F0gram grid as string values */
     vector<string> f0values;
     int ind = 0;
-    char f0String[10];
+    char f0String[100];
     while (ind < m_num_f0s) {
         sprintf(f0String, "%4.2f", m_f0s[ind]);
         f0values.push_back(f0String);
@@ -491,13 +533,8 @@ FChTransformF0gram::getOutputDescriptors() const {
     d.identifier = "f0gram";
     d.name = "F0gram: salience of f0s";
     d.description = "This representation show the salience of the different f0s in the signal.";
-    d.unit = "Hertz";
     d.hasFixedBinCount = true;
-    //d.binCount = m_num_f0s;
-    //d.binCount = m_blockSize/2+1;
-    //d.binCount = m_warp_params.nsamps_twarp/2+1;
-    //d.binCount = m_warpings.nsamps_torig;
-    d.binCount = m_f0_params.num_octs*m_f0_params.num_f0s_per_oct;
+    d.binCount = m_f0_params.num_octs * m_f0_params.num_f0s_per_oct;
     d.binNames = f0values;
     d.hasKnownExtents = false;
     d.isQuantized = false;
@@ -511,7 +548,9 @@ FChTransformF0gram::getOutputDescriptors() const {
 bool
 FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSize) {
     if (channels < getMinChannelCount() ||
-        channels > getMaxChannelCount()) return false;
+        channels > getMaxChannelCount()) {
+        return false;
+    }
 
     // set blockSize and stepSize (but changed below)
     m_blockSize = blockSize;
@@ -522,10 +561,6 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     // the parameters used below correspond to default values i.e. m_fs = 44.100 Hz
     //m_blockSize = 4 * m_warp_params.nsamps_twarp;
     m_stepSize = floor(m_hop / m_warp_params.fact_over_samp);
-
-    /* initialise m_warp_params  */
-    //    FChTF0gram:warping_design m_warpings = new warping_design;
-    /* initialise m_f0_params    */
 
     /* initialise m_glogs_params */
     design_GLogS();
@@ -538,9 +573,9 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     design_time_window();
 
     // Create Hanning window for warped signals
-    mp_HanningWindow = new double[m_warp_params.nsamps_twarp];
+    mp_HanningWindow = allocate<double>(m_warp_params.nsamps_twarp);
     bool normalize = false;
-    hanning_window(mp_HanningWindow, m_warp_params.nsamps_twarp, normalize);
+    Utils::hanning_window(mp_HanningWindow, m_warp_params.nsamps_twarp, normalize);
 
     return true;
 }
@@ -553,10 +588,10 @@ FChTransformF0gram::design_GLogS() {
     m_glogs_num_f0s = (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct + m_glogs_init_f0s;
 
     // Initialize arrays
-    m_glogs_f0 = new double[m_glogs_num_f0s];
-    m_glogs = new double[m_glogs_num_f0s*m_warp_params.num_warps];
-    m_glogs_n = new int[m_glogs_num_f0s];
-    m_glogs_index = new int[m_glogs_num_f0s];
+    m_glogs_f0 = allocate<double>(m_glogs_num_f0s);
+    m_glogs = allocate<double>(m_glogs_num_f0s*m_warp_params.num_warps);
+    m_glogs_n = allocate<int>(m_glogs_num_f0s);
+    m_glogs_index = allocate<int>(m_glogs_num_f0s);
 
     // Compute f0 values
     m_glogs_harmonic_count = 0;
@@ -570,9 +605,9 @@ FChTransformF0gram::design_GLogS() {
     }
 
     // Initialize arrays for interpolation
-    m_glogs_posint = new int[m_glogs_harmonic_count];
-    m_glogs_posfrac = new double[m_glogs_harmonic_count];
-    m_glogs_interp = new double[m_glogs_harmonic_count];
+    m_glogs_posint = allocate<int>(m_glogs_harmonic_count);
+    m_glogs_posfrac = allocate<double>(m_glogs_harmonic_count);
+    m_glogs_interp = allocate<double>(m_glogs_harmonic_count);
 
     // Compute int & frac of interpolation positions
     int aux_index = 0;
@@ -589,31 +624,30 @@ FChTransformF0gram::design_GLogS() {
 
     // Third harmonic attenuation
     double aux_third_harmonic;
-    m_glogs_third_harmonic_posint = new int[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
-    m_glogs_third_harmonic_posfrac = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
+    m_glogs_third_harmonic_posint = allocate<int>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
+    m_glogs_third_harmonic_posfrac = allocate<double>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
     for (int i = 0; i < (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct; i++) {
         aux_third_harmonic = (double)i + (double)m_glogs_init_f0s - ((double)m_f0_params.num_f0s_per_oct)*log2(3.0);
         m_glogs_third_harmonic_posint[i] = (int)aux_third_harmonic;
         m_glogs_third_harmonic_posfrac[i] = aux_third_harmonic - (double)(m_glogs_third_harmonic_posint[i]);
     }
-    m_glogs_third_harmonic = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
+    m_glogs_third_harmonic = allocate<double>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
 
     // Fifth harmonic attenuation
     double aux_fifth_harmonic;
-    m_glogs_fifth_harmonic_posint = new int[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
-    m_glogs_fifth_harmonic_posfrac = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
+    m_glogs_fifth_harmonic_posint = allocate<int>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
+    m_glogs_fifth_harmonic_posfrac = allocate<double>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
     for (int i = 0; i < (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct; i++) {
         aux_fifth_harmonic = (double)i + (double)m_glogs_init_f0s - ((double)m_f0_params.num_f0s_per_oct)*log2(5.0);
         m_glogs_fifth_harmonic_posint[i] = (int)aux_fifth_harmonic;
         m_glogs_fifth_harmonic_posfrac[i] = aux_fifth_harmonic - (double)(m_glogs_fifth_harmonic_posint[i]);
     }
-    m_glogs_fifth_harmonic = new double[(m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct];
+    m_glogs_fifth_harmonic = allocate<double>((m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
 
     // Normalization & attenuation windows
-    m_glogs_f0_preference_weights = new double[m_f0_params.num_octs*m_f0_params.num_f0s_per_oct];
-    m_glogs_median_correction = new double[m_f0_params.num_octs*m_f0_params.num_f0s_per_oct];
-    m_glogs_sigma_correction = new double[m_f0_params.num_octs*m_f0_params.num_f0s_per_oct];
-    m_glogs_hf_smoothing_window = new double[m_warp_params.nsamps_twarp/2+1];
+    m_glogs_f0_preference_weights = allocate<double>(m_f0_params.num_octs*m_f0_params.num_f0s_per_oct);
+    m_glogs_median_correction = allocate<double>(m_f0_params.num_octs*m_f0_params.num_f0s_per_oct);
+    m_glogs_sigma_correction = allocate<double>(m_f0_params.num_octs*m_f0_params.num_f0s_per_oct);
     double MIDI_value;
     for (int i = 0; i < m_f0_params.num_octs*m_f0_params.num_f0s_per_oct; i++) {
         MIDI_value = 69.0 + 12.0 * log2(m_glogs_f0[i + m_glogs_init_f0s]/440.0);
@@ -622,16 +656,6 @@ FChTransformF0gram::design_GLogS() {
 		
         m_glogs_median_correction[i] = m_glogs_params.median_poly_coefs[0]*(i+1.0)*(i+1.0) + m_glogs_params.median_poly_coefs[1]*(i+1.0) + m_glogs_params.median_poly_coefs[2];
         m_glogs_sigma_correction[i] = 1.0 / (m_glogs_params.sigma_poly_coefs[0]*(i+1.0)*(i+1.0) + m_glogs_params.sigma_poly_coefs[1]*(i+1.0) + m_glogs_params.sigma_poly_coefs[2]);
-    }
-	
-    double smooth_width = 1000.0; // hertz.
-    double smooth_aux = (double)(m_warp_params.nsamps_twarp/2+1)*(m_fmax-smooth_width)/m_fmax;
-    for (int i = 0; i < m_warp_params.nsamps_twarp/2+1; i++) {
-        if (i <  smooth_aux) {
-            m_glogs_hf_smoothing_window[i] = 1.0;
-        } else {
-            m_glogs_hf_smoothing_window[i] = ((double)i - (double)m_warp_params.nsamps_twarp/2.0)*(-1.0/((double)(m_warp_params.nsamps_twarp/2+1)-smooth_aux));
-        }
     }
 }
 
@@ -655,30 +679,31 @@ FChTransformF0gram::design_FChT() {
     // equivalent to: m_warpings.nsamps_torig = m_warp_params.fact_over_samp * m_blockSize;
 
     // time instants of the original signal frame
-    double t_orig[m_warpings.nsamps_torig];
-    //float * t_orig = new float [m_warpings.nsamps_torig];
+    double *t_orig = allocate<double>(m_warpings.nsamps_torig);
     for (int ind = 0; ind < m_warpings.nsamps_torig; ind++) {
         t_orig[ind] = ((double)(ind + 1) - (double)m_warpings.nsamps_torig / 2.0) / m_warpings.fs_orig;
     }
 
     // linear chirps warping definition as relative frequency deviation
-    //double * freq_relative = new double [m_warpings.nsamps_torig * m_warp_params.num_warps];
     //TODO
-    double *freq_relative = new double [m_warpings.nsamps_torig * m_warp_params.num_warps];
+    double *freq_relative = allocate<double>(m_warpings.nsamps_torig * m_warp_params.num_warps);
     define_warps_linear_chirps(freq_relative, t_orig);
 
     // maximum relative frequency deviation
     double freq_relative_max = 0;
-    for (int i = 0; i < m_warpings.nsamps_torig; i++)
-        for (int j = 0; j < m_warp_params.num_warps; j++)
-            if (freq_relative_max < freq_relative[j * m_warpings.nsamps_torig + i])
+    for (int i = 0; i < m_warpings.nsamps_torig; i++) {
+        for (int j = 0; j < m_warp_params.num_warps; j++) {
+            if (freq_relative_max < freq_relative[j * m_warpings.nsamps_torig + i]) {
                 freq_relative_max = freq_relative[j * m_warpings.nsamps_torig + i];
+            }
+        }
+    }
 
     // sampling frequency of warped signal to be free of aliasing up to fmax
     m_warpings.fs_warp = 2 * m_fmax * freq_relative_max;
 
     // time instants of the warped signal frame
-    double t_warp[m_warp_params.nsamps_twarp];
+    double *t_warp = allocate<double>(m_warp_params.nsamps_twarp);
     for (int ind = 0; ind < m_warp_params.nsamps_twarp; ind++) {
         t_warp[ind] = ((double)((int)(ind + 1)- (int)m_warp_params.nsamps_twarp / 2)) / (double)m_warpings.fs_warp;
     }
@@ -714,16 +739,18 @@ FChTransformF0gram::design_FChT() {
       }
     */
 
-    delete [] freq_relative;
+    deallocate(freq_relative);
+    deallocate(t_orig);
+    deallocate(t_warp);
+
     //output.close();
 
     /*  =============  FFTW PLAN DESIGN   ============= */
     // Initialize 2-d array for warped signals
-    x_warping = new double[m_warp_params.nsamps_twarp];
-    m_absFanChirpTransform = (double*)fftw_malloc(sizeof (double) * m_warp_params.num_warps * (m_warp_params.nsamps_twarp/2 + 1));
-    m_auxFanChirpTransform = (fftw_complex*)fftw_malloc(sizeof ( fftw_complex) * (m_warp_params.nsamps_twarp/2 + 1));
-    plan_forward_xwarping = fftw_plan_dft_r2c_1d(m_warp_params.nsamps_twarp, x_warping, m_auxFanChirpTransform, FFTW_ESTIMATE);
-
+    x_warping = allocate<double>(m_warp_params.nsamps_twarp);
+    m_absFanChirpTransform = allocate<double>(m_warp_params.num_warps * (m_warp_params.nsamps_twarp/2 + 1));
+    m_auxFanChirpTransform = allocate<double>(2 * (m_warp_params.nsamps_twarp/2 + 1));
+    fft_xwarping = new FFTReal(m_warp_params.nsamps_twarp);
 }
 
 void
@@ -734,20 +761,20 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
        hypothesis: sampling frequency at the central point equals the original
     */
 
-    m_warpings.pos_int = new int[m_warp_params.num_warps * m_warp_params.nsamps_twarp];
-    m_warpings.pos_frac = new double[m_warp_params.num_warps * m_warp_params.nsamps_twarp];
+    m_warpings.pos_int = allocate<int>(m_warp_params.num_warps * m_warp_params.nsamps_twarp);
+    m_warpings.pos_frac = allocate<double>(m_warp_params.num_warps * m_warp_params.nsamps_twarp);
 
     // vector of phase values
-    double *phi = new double[m_warpings.nsamps_torig];
+    double *phi = allocate<double>(m_warpings.nsamps_torig);
     double aux;
 
     // warped positions
-    double *pos1 = new double[m_warp_params.nsamps_twarp*m_warp_params.num_warps];
+    double *pos1 = allocate<double>(m_warp_params.nsamps_twarp*m_warp_params.num_warps);
 	
     for (int i = 0; i < m_warp_params.num_warps; i++) {
 		
         // integration of relative frequency to obtain phase values
-        cumtrapz(t_orig, freq_relative + i*(m_warpings.nsamps_torig), m_warpings.nsamps_torig, phi);
+        Utils::cumtrapz(t_orig, freq_relative + i*(m_warpings.nsamps_torig), m_warpings.nsamps_torig, phi);
 
         // centering of phase values to force original frequency in the middle
         aux = phi[m_warpings.nsamps_torig/2];
@@ -756,7 +783,7 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
         } //for
 
         // interpolation of phase values to obtain warped positions
-        interp1(phi, t_orig, m_warpings.nsamps_torig, t_warp, pos1 + i*m_warp_params.nsamps_twarp, m_warp_params.nsamps_twarp);
+        Utils::interp1(phi, t_orig, m_warpings.nsamps_torig, t_warp, pos1 + i*m_warp_params.nsamps_twarp, m_warp_params.nsamps_twarp);
     }
 
     // % previous sample index
@@ -773,8 +800,8 @@ FChTransformF0gram::design_warps(double * freq_relative, double * t_orig, double
         m_warpings.pos_frac[j] = pos1[j] - (double)(m_warpings.pos_int[j]);
     } //for
 
-    delete [] phi;
-    delete [] pos1;
+    deallocate(phi);
+    deallocate(pos1);
 }
 
 void
@@ -786,7 +813,7 @@ FChTransformF0gram::define_warps_linear_chirps(double * freq_relative, double * 
     if (m_warp_params.alpha_dist == 0) {
 
         // linear alpha values spacing
-        m_warpings.chirp_rates = new double [m_warp_params.num_warps];
+        m_warpings.chirp_rates = allocate<double>(m_warp_params.num_warps);
         // WARNING m_warp_params.num_warps must be odd
         m_warpings.chirp_rates[0] = -m_warp_params.alpha_max;
         double increment = (double) m_warp_params.alpha_max / ((m_warp_params.num_warps - 1) / 2);
@@ -799,7 +826,7 @@ FChTransformF0gram::define_warps_linear_chirps(double * freq_relative, double * 
 
     } else {
         // log alpha values spacing
-        m_warpings.chirp_rates = new double [m_warp_params.num_warps];
+        m_warpings.chirp_rates = allocate<double>(m_warp_params.num_warps);
 
         // force zero value
         int middle_point = (int) ((m_warp_params.num_warps - 1) / 2);
@@ -823,22 +850,18 @@ FChTransformF0gram::define_warps_linear_chirps(double * freq_relative, double * 
     }
 
     // compute relative frequency deviation
-    for (int i = 0; i < m_warpings.nsamps_torig; i++)
-        for (int j = 0; j < m_warp_params.num_warps; j++)
+    for (int i = 0; i < m_warpings.nsamps_torig; i++) {
+        for (int j = 0; j < m_warp_params.num_warps; j++) {
             freq_relative[j * m_warpings.nsamps_torig + i] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
-    //freq_relative[i * m_warpings.nsamps_torig + j] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
-    //freq_relative[i][j] = 1.0 + t_orig[i] * m_warpings.chirp_rates[j];
+        }
+    }
 }
 
 void
-FChTransformF0gram::design_LPF() {
-
-    //    in = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * tamanoVentana);
-    //    out = (fftw_complex*) fftw_malloc(sizeof (fftw_complex) * tamanoVentana);
-    //    in_window = (float*) fftw_malloc(sizeof (float) * tamanoVentana);
-    //    p = fftw_plan_dft_1d(tamanoVentana, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    double *lp_LPFWindow_aux = new double[m_blockSize/2+1];
-    mp_LPFWindow = new double[m_blockSize/2+1];
+FChTransformF0gram::design_LPF()
+{
+    double *lp_LPFWindow_aux = allocate<double>(m_blockSize/2+1);
+    mp_LPFWindow = allocate<double>(m_blockSize/2+1);
     
     int i_max = (int) ((2.0*m_fmax/m_fs) * ( (double)m_blockSize / 2.0 + 1.0 ));
     for (int i = 0; i < m_blockSize/2+1; i++) {
@@ -848,30 +871,15 @@ FChTransformF0gram::design_LPF() {
             lp_LPFWindow_aux[i] = 1.0;
         }
     }
-    LPF_time = (double*)fftw_malloc(sizeof ( double) * m_warpings.nsamps_torig);
-    //memset((char*)LPF_time, 0, m_warpings.nsamps_torig * sizeof(double));	
-    // sustituyo el memset por un for:
-    for (int i = 0; i < m_warpings.nsamps_torig; i++) {
-        LPF_time[i] = 0.0;
-    }
-#ifdef DEBUG
-    printf("	Corrio primer memset...\n");
-#endif
-    LPF_frequency = (fftw_complex*)fftw_malloc(sizeof ( fftw_complex) * (m_warpings.nsamps_torig/2 + 1)); //tamaño de la fft cuando la entrada es real
-    //memset((char*)LPF_frequency, 0, sizeof(fftw_complex) * (m_warpings.nsamps_torig/2 + 1));
-    // sustituyo el memset por un for:
-    for (int i = 0; i < (m_warpings.nsamps_torig/2 + 1); i++) {
-        LPF_frequency[i][0] = 0.0;
-        LPF_frequency[i][1] = 0.0;
-    }
-//	for (int i=0; i<(m_blockSize/2+1); i++) {
-//		LPF_frequency[i] =  new fftw_complex;
-//	}
-    plan_forward_LPF = fftw_plan_dft_r2c_1d(m_blockSize, LPF_time, LPF_frequency, FFTW_ESTIMATE);
-    plan_backward_LPF = fftw_plan_dft_c2r_1d(m_warpings.nsamps_torig, LPF_frequency, LPF_time, FFTW_ESTIMATE|FFTW_PRESERVE_INPUT);
+
+    LPF_time = allocate_and_zero<double>(m_warpings.nsamps_torig);
+    LPF_frequency = allocate_and_zero<double>(2 * (m_warpings.nsamps_torig/2 + 1));
+
+    fft_forward_LPF = new FFTReal(m_blockSize);
+    fft_inverse_LPF = new FFTReal(m_warpings.nsamps_torig);
     
     int winWidth = 11;
-    double *lp_hanningWindow = new double[winWidth]; 
+    double *lp_hanningWindow = allocate<double>(winWidth); 
     double accum=0;
     for (int i = 0; i < winWidth; i++) {
         lp_hanningWindow[i]=0.5*(1.0-cos(2*M_PI*(double)(i+1)/((double)winWidth+1.0)));
@@ -894,68 +902,36 @@ FChTransformF0gram::design_LPF() {
         }
     }
 
-    delete[] lp_LPFWindow_aux;
-    delete[] lp_hanningWindow;
+    deallocate(lp_LPFWindow_aux);
+    deallocate(lp_hanningWindow);
 }
 
-void FChTransformF0gram::apply_LPF() {
-    fftw_execute(plan_forward_LPF);
+void FChTransformF0gram::apply_LPF()
+{
+    fft_forward_LPF->forward(LPF_time, LPF_frequency);
+
     for (int i = 0; i < m_blockSize/2+1; i++) {
-        LPF_frequency[i][0]*=mp_LPFWindow[i];
-        LPF_frequency[i][1]*=mp_LPFWindow[i];
+        LPF_frequency[i*2]     *= mp_LPFWindow[i] * m_warpings.nsamps_torig;
+        LPF_frequency[i*2 + 1] *= mp_LPFWindow[i] * m_warpings.nsamps_torig;
     }
-    fftw_execute(plan_backward_LPF);
+
+    fft_inverse_LPF->inverse(LPF_frequency, LPF_time);
 
     // TODO ver si hay que hacer fftshift para corregir la fase respecto al centro del frame.
     // nota: además de aplicar el LPF, esta función resamplea la señal original.
 }
 
-void FChTransformF0gram::clean_LPF() {
-    delete[] mp_LPFWindow;
-
-    fftw_destroy_plan(plan_forward_LPF);
-    fftw_destroy_plan(plan_backward_LPF);
-    fftw_free(LPF_time);
-    fftw_free(LPF_frequency);
+void FChTransformF0gram::clean_LPF()
+{
+    delete fft_forward_LPF;
+    delete fft_inverse_LPF;
+    deallocate(LPF_time);
+    deallocate(LPF_frequency);
+    deallocate(mp_LPFWindow);
 }
 
-void FChTransformF0gram::reset() {
-
-    // Clear buffers, reset stored values, etc
-
-    delete [] m_warpings.pos_int;
-    delete [] m_warpings.pos_frac;
-
-    clean_LPF();
-
-    delete [] m_timeWindow;
-
-    delete [] mp_HanningWindow;
-
-    // Warping
-    delete [] x_warping;
-    fftw_destroy_plan(plan_forward_xwarping);
-    fftw_free(m_absFanChirpTransform); 
-    fftw_free(m_auxFanChirpTransform);
-
-    // design_GLogS
-    delete [] m_glogs_f0;
-    delete [] m_glogs;
-    delete [] m_glogs_n;
-    delete [] m_glogs_index;
-    delete [] m_glogs_posint;
-    delete [] m_glogs_posfrac;
-    delete [] m_glogs_third_harmonic_posint;
-    delete [] m_glogs_third_harmonic_posfrac;
-    delete [] m_glogs_third_harmonic;
-    delete [] m_glogs_fifth_harmonic_posint;
-    delete [] m_glogs_fifth_harmonic_posfrac;
-    delete [] m_glogs_fifth_harmonic;
-    delete [] m_glogs_f0_preference_weights;
-    delete [] m_glogs_median_correction;
-    delete [] m_glogs_sigma_correction;
-    delete [] m_glogs_hf_smoothing_window;
-
+void FChTransformF0gram::reset()
+{
 }
 
 FChTransformF0gram::FeatureSet
@@ -992,9 +968,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     printf("	m_glogs_harmonic_count = %d.\n",m_glogs_harmonic_count);
 #endif
 
-    // int n = m_nfft/2 + 1;
-    // double *tbuf = in_window;
-
     for (int i = 0; i < m_blockSize; i++) {
         LPF_time[i] = (double)(inputBuffers[0][i]) * m_timeWindow[i];
     }
@@ -1018,7 +991,7 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
     for (int i_warp = 0; i_warp < m_warp_params.num_warps; i_warp++) {
         // Interpolate
-        interp1q(LPF_time, (m_warpings.pos_int) + i_warp*m_warp_params.nsamps_twarp, m_warpings.pos_frac + i_warp*m_warp_params.nsamps_twarp, x_warping, m_warp_params.nsamps_twarp);
+        Utils::interp1q(LPF_time, (m_warpings.pos_int) + i_warp*m_warp_params.nsamps_twarp, m_warpings.pos_frac + i_warp*m_warp_params.nsamps_twarp, x_warping, m_warp_params.nsamps_twarp);
 
         // Apply window
         for (int i = 0; i < m_warp_params.nsamps_twarp; i++) {
@@ -1026,20 +999,17 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
         }
 
         // Transform
-        fftw_execute(plan_forward_xwarping);
+        fft_xwarping->forward(x_warping, m_auxFanChirpTransform);
 
         // Copy result
-        //memcpy(m_absFanChirpTransform + i_warp*(m_warp_params.nsamps_twarp/2+1), m_auxFanChirpTransform, (m_warp_params.nsamps_twarp/2+1)*sizeof(fftw_complex)); asi como esta no funciona
         double *aux_abs_fcht = m_absFanChirpTransform + i_warp*(m_warp_params.nsamps_twarp/2+1);
         for (int i = 0; i < (m_warp_params.nsamps_twarp/2+1); i++) {
-            aux_abs_fcht[i] = log10(1.0 + 10.0*sqrt(m_auxFanChirpTransform[i][0]*m_auxFanChirpTransform[i][0]+m_auxFanChirpTransform[i][1]*m_auxFanChirpTransform[i][1]));
-            // smoothing high frequency values
-            //aux_abs_fcht[i] *= m_glogs_hf_smoothing_window[i];
+            aux_abs_fcht[i] = log10(1.0 + 10.0*sqrt(m_auxFanChirpTransform[i*2]*m_auxFanChirpTransform[i*2]+m_auxFanChirpTransform[i*2+1]*m_auxFanChirpTransform[i*2+1]));
         }
 		
 //      -----------------------------------------------------------------------------------------
 // 		GLogS
-        interp1q(aux_abs_fcht, m_glogs_posint, m_glogs_posfrac, m_glogs_interp, m_glogs_harmonic_count);
+        Utils::interp1q(aux_abs_fcht, m_glogs_posint, m_glogs_posfrac, m_glogs_interp, m_glogs_harmonic_count);
         int glogs_ind = 0;
         for (int i = 0; i < m_glogs_num_f0s; i++) {
             double glogs_accum = 0;
@@ -1050,8 +1020,8 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
         }
 
 //		Sub/super harmonic correction
-        interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_third_harmonic_posint, m_glogs_third_harmonic_posfrac, m_glogs_third_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
-        interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_fifth_harmonic_posint, m_glogs_fifth_harmonic_posfrac, m_glogs_fifth_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
+        Utils::interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_third_harmonic_posint, m_glogs_third_harmonic_posfrac, m_glogs_third_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
+        Utils::interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_fifth_harmonic_posint, m_glogs_fifth_harmonic_posfrac, m_glogs_fifth_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
         for (int i = m_glogs_num_f0s-1; i >= m_glogs_init_f0s; i--) {
             m_glogs[i + i_warp*m_glogs_num_f0s] -= MAX(MAX(m_glogs[i-m_f0_params.num_f0s_per_oct + i_warp*m_glogs_num_f0s],m_glogs_third_harmonic[i-m_glogs_init_f0s]),m_glogs_fifth_harmonic[i-m_glogs_init_f0s]);
             //m_glogs[i] -= MAX(m_glogs[i-m_f0_params.num_f0s_per_oct],m_glogs_third_harmonic[i-m_glogs_init_f0s]);
@@ -1074,14 +1044,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 // ----------------------------------------------------------------------------------------------
 
     for (int i=m_glogs_init_f0s; i< m_glogs_num_f0s - m_f0_params.num_f0s_per_oct; i++) {
-	//for (int i=0; i<(m_warp_params.nsamps_twarp/2+1); i++) {
-        //feature.values.push_back((float)(m_warpings.pos_int[i])+ (float)(m_warpings.pos_frac[i]));
-        //feature.values.push_back((float)(phi[i]*100000.0));
-        //feature.values.push_back((float)(t_orig[i]));
-        //feature.values.push_back((float)(pos1[i]));
-        //feature.values.push_back((float)x_warping[i]);
-        //feature.values.push_back(m_absFanChirpTransform[i + ind_max_glogs*(m_warp_params.nsamps_twarp/2+1)]);
-        //feature.values.push_back((float)m_glogs[i+(long)ind_max_glogs*(long)m_glogs_num_f0s]);
         switch (m_f0gram_mode) {
         case 1:		
             max_glogs = -DBL_MAX;
@@ -1097,7 +1059,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
             feature.values.push_back((float)m_glogs[i+(int)ind_max_glogs*(int)m_glogs_num_f0s]);
             break;
         }
-        //feature.values.push_back((float)m_glogs_hf_smoothing_window[i]);
     }
 
 // ----------------------------------------------------------------------------------------------
@@ -1111,7 +1072,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     return fs;
 //---------------------------------------------------------------------------
 
-    //return FeatureSet();
 }
 
 FChTransformF0gram::FeatureSet
@@ -1123,8 +1083,8 @@ void
 FChTransformF0gram::design_time_window() {
 
     int transitionWidth = (int)m_blockSize/128 + 1;;
-    m_timeWindow = new double[m_blockSize];
-    double *lp_transitionWindow = new double[transitionWidth];
+    m_timeWindow = allocate<double>(m_blockSize);
+    double *lp_transitionWindow = allocate<double>(transitionWidth);
 
     //memset(m_timeWindow, 1.0, m_blockSize);
     for (int i = 0; i < m_blockSize; i++) {
@@ -1148,6 +1108,6 @@ FChTransformF0gram::design_time_window() {
     }
 #endif
 
-    delete [] lp_transitionWindow;
+    deallocate(lp_transitionWindow);
 }
 

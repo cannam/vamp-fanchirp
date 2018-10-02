@@ -22,14 +22,16 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <vamp-sdk/Plugin.h>
+#include <vamp-sdk/FFT.h>
 #include <complex>
-#include <fftw3.h>
 #include <iostream>
 #include <fstream>
 #include <string.h>
 
 using namespace std;
 using std::string;
+
+using _VampPlugin::Vamp::FFTReal;
 
 class FChTransformF0gram : public Vamp::Plugin {
 public:
@@ -137,9 +139,9 @@ protected:
     // LPFWindow
     double *mp_LPFWindow;
     double *LPF_time;
-    fftw_complex *LPF_frequency;
-    fftw_plan plan_backward_LPF;
-    fftw_plan plan_forward_LPF;
+    double *LPF_frequency;
+    FFTReal *fft_forward_LPF; // two of these as they have different sizes
+    FFTReal *fft_inverse_LPF;
     // timeWindow
     double *m_timeWindow;
     // Warpings
@@ -148,8 +150,8 @@ protected:
     double *mp_HanningWindow;
     // FChT plan & transformed data structs
     double *m_absFanChirpTransform;
-    fftw_complex *m_auxFanChirpTransform;
-    fftw_plan plan_forward_xwarping;
+    double *m_auxFanChirpTransform;
+    FFTReal *fft_xwarping;
     // GLogS
     double *m_glogs_f0;
     double *m_glogs;
@@ -170,7 +172,6 @@ protected:
     double *m_glogs_f0_preference_weights;
     double *m_glogs_median_correction;
     double *m_glogs_sigma_correction;
-    double *m_glogs_hf_smoothing_window;
     // auxiliar methods
     void design_GLogS();
     void design_FChT();

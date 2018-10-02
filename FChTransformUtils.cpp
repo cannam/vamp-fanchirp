@@ -19,7 +19,8 @@
 #include "FChTransformUtils.h"
 #include <math.h>
 
-void cumtrapz(const double *x, const double *y, int N, double *accum)
+void
+Utils::cumtrapz(const double *x, const double *y, int N, double *accum)
 /*Trapezoidal Integrator: 1/2(b-a)(F(a)+F(b))*/
 {
     accum[0]=0.0;
@@ -29,7 +30,8 @@ void cumtrapz(const double *x, const double *y, int N, double *accum)
 }
 
 
-void interp1(const double *x1, const double *y1, int N1, const double *x2, double *y2, int N2){
+void
+Utils::interp1(const double *x1, const double *y1, int N1, const double *x2, double *y2, int N2){
 /*1-D linear interpolation*/
 
     for (int i = 0; i < N2; i++) {
@@ -54,15 +56,8 @@ void interp1(const double *x1, const double *y1, int N1, const double *x2, doubl
 
 }
 
-void interp1q(const double *y1, const int *x2_int, const double *x2_frac, double *y2, int N2){
-
-    for(int i=0;i<N2;i++){
-        y2[i] = y1[x2_int[i]]*(1.0-x2_frac[i])+y1[x2_int[i]+1]*x2_frac[i];
-    } // for
-
-}
-
-void hanning_window(double *p_window, int n, bool normalize) {
+void
+Utils::hanning_window(double *p_window, int n, bool normalize) {
 
     double accum=0;
     for (int i = 0; i < n; i++) {
