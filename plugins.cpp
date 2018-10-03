@@ -9,11 +9,27 @@
 
 #include "FChTransformF0gram.h"
 
+class FChTransformAdapter : public Vamp::PluginAdapterBase
+{
+public:
+    FChTransformAdapter(FChTransformF0gram::ProcessingMode mode) :
+        PluginAdapterBase(),
+        m_mode(mode)
+    { }
 
-// Declare one static adapter here for each plugin class in this library.
+    virtual ~FChTransformAdapter() { }
 
-static Vamp::PluginAdapter<FChTransformF0gram> FChTransformF0gramAdapter;
+protected:
+    Vamp::Plugin *createPlugin(float inputSampleRate) {
+        return new FChTransformF0gram(m_mode, inputSampleRate);
+    }
 
+    FChTransformF0gram::ProcessingMode m_mode;
+};
+
+static FChTransformAdapter f0gram(FChTransformF0gram::ModeF0Gram);
+static FChTransformAdapter spectrogram(FChTransformF0gram::ModeSpectrogram);
+static FChTransformAdapter rough(FChTransformF0gram::ModeRoughSpectrogram);
 
 // This is the entry-point for the library, and the only function that
 // needs to be publicly exported.
@@ -29,7 +45,9 @@ vampGetPluginDescriptor(unsigned int version, unsigned int index)
     // library.)
 
     switch (index) {
-    case  0: return FChTransformF0gramAdapter.getDescriptor();
+    case  0: return f0gram.getDescriptor();
+    case  1: return spectrogram.getDescriptor();
+    case  2: return rough.getDescriptor();
     default: return 0;
     }
 }

@@ -33,9 +33,16 @@ using std::string;
 
 using _VampPlugin::Vamp::FFTReal;
 
-class FChTransformF0gram : public Vamp::Plugin {
+class FChTransformF0gram : public Vamp::Plugin
+{
 public:
-    FChTransformF0gram(float inputSampleRate);
+    enum ProcessingMode {
+        ModeF0Gram,
+        ModeSpectrogram,
+        ModeRoughSpectrogram
+    };
+    
+    FChTransformF0gram(ProcessingMode mode, float inputSampleRate);
     virtual ~FChTransformF0gram();
 
     string getIdentifier() const;
@@ -56,8 +63,6 @@ public:
     void setParameter(string identifier, float value);
 
     ProgramList getPrograms() const;
-    string getCurrentProgram() const;
-    void selectProgram(string name);
 
     OutputList getOutputDescriptors() const;
 
@@ -70,8 +75,7 @@ public:
     FeatureSet getRemainingFeatures();
 
 protected:
-
-    string m_currentProgram;
+    ProcessingMode m_processingMode;
     int m_stepSize;
     int m_blockSize;
     float m_fs; // input sampling rate (inputSampleRate)
@@ -110,7 +114,12 @@ protected:
     } f0_parameters;
 
     f0_parameters m_f0_params;
-    bool m_f0gram_mode;
+
+    enum F0GramMode {
+        AllBinsOfBestDirection,
+        BestBinOfAllDirections
+    };
+    F0GramMode m_f0gram_mode;
 
     // ======== GATHERED LOG SPECTRUM PARAMETERS =======
 

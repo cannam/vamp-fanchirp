@@ -28,9 +28,10 @@ using namespace breakfastquay;
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
-FChTransformF0gram::FChTransformF0gram(float inputSampleRate) :
+FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
+                                       float inputSampleRate) :
     Plugin(inputSampleRate),
-    m_currentProgram("default"),
+    m_processingMode(mode),
     m_stepSize(0), // We are using 0 for step and block size to indicate "not yet set".
     m_blockSize(0) {
 
@@ -57,7 +58,7 @@ FChTransformF0gram::FChTransformF0gram(float inputSampleRate) :
     m_glogs_params.HP_logS = true;
     m_glogs_params.att_subharms = 1;
     // display parameters
-    m_f0gram_mode = true;
+    m_f0gram_mode = BestBinOfAllDirections;
 
     m_glogs_params.median_poly_coefs[0] = -0.000000058551680;
     m_glogs_params.median_poly_coefs[1] = -0.000006945207775;
@@ -119,18 +120,32 @@ FChTransformF0gram::~FChTransformF0gram()
 
 string
 FChTransformF0gram::getIdentifier() const {
-    return "fchtransformf0gram";
+    switch (m_processingMode) {
+    case ModeF0Gram: return "fchtransformf0gram";
+    case ModeSpectrogram: return "fchtransformspectrogram";
+    case ModeRoughSpectrogram: return "fchtransformrough";
+    }
 }
 
 string
 FChTransformF0gram::getName() const {
-    return "Fan Chirp Transform F0gram";
+    switch (m_processingMode) {
+    case ModeF0Gram: return "Fan Chirp Transform F0gram";
+    case ModeSpectrogram: return "Fan Chirp Transform Spectrogram";
+    case ModeRoughSpectrogram: return "Fan Chirp Transform Rough Spectrogram";
+    }
 }
 
 string
 FChTransformF0gram::getDescription() const {
-    // Return something helpful here!
-    return "This plug-in produces a representation, called F0gram, which exhibits the salience of the fundamental frequency of the sound sources in the audio file. The computation of the F0gram makes use of the Fan Chirp Transform analysis. It is based on the article \"Fan chirp transform for music representation\"  P. Cancela, E. Lopez, M. Rocamora, International Conference on Digital Audio Effects, 13th. DAFx-10. Graz, Austria - 6-10 Sep 2010.";
+    switch (m_processingMode) {
+    case ModeF0Gram: 
+        return "This plug-in produces a representation, called F0gram, which exhibits the salience of the fundamental frequency of the sound sources in the audio file. The computation of the F0gram makes use of the Fan Chirp Transform analysis. It is based on the article \"Fan chirp transform for music representation\"  P. Cancela, E. Lopez, M. Rocamora, International Conference on Digital Audio Effects, 13th. DAFx-10. Graz, Austria - 6-10 Sep 2010.";
+    case ModeSpectrogram:
+        return "This plug-in produces a spectral representation of the audio using Fan Chirp Transform analysis.";
+    case ModeRoughSpectrogram:
+        return "This plug-in produces a more approximate spectral representation of the audio using Fan Chirp Transform analysis.";
+    }
 }
 
 string
@@ -145,7 +160,7 @@ FChTransformF0gram::getPluginVersion() const {
     // differently from the previous one
     //
     // 0 - initial version from scratch
-    return 0;
+    return 1;
 }
 
 string
@@ -412,15 +427,15 @@ FChTransformF0gram::getParameter(string identifier) const {
     } else if (identifier == "f0_prefer_stdev") {
         return m_f0_params.prefer_stdev;
     } else if (identifier == "f0gram_mode") {
-        return m_f0gram_mode;
+        return m_f0gram_mode == BestBinOfAllDirections ? 1.0 : 0.0;
     } else {
         return 0.f;
     }
 
 }
 
-void FChTransformF0gram::setParameter(string identifier, float value) {
-
+void FChTransformF0gram::setParameter(string identifier, float value)
+{
     if (identifier == "fmax") {
         m_fmax = value;
     } else if (identifier == "nsamp") {
@@ -448,66 +463,19 @@ void FChTransformF0gram::setParameter(string identifier, float value) {
     } else if (identifier == "f0_prefer_stdev") {
         m_f0_params.prefer_stdev = value;
     } else if (identifier == "f0gram_mode") {
-        m_f0gram_mode = value;
+        m_f0gram_mode = (value > 0.5 ?
+                         BestBinOfAllDirections :
+                         AllBinsOfBestDirection);
+    } else {
+        cerr << "WARNING: Unknown parameter id \""
+             << identifier << "\"" << endl;
     }
-
 }
 
 FChTransformF0gram::ProgramList
 FChTransformF0gram::getPrograms() const {
     ProgramList list;
-
-    list.push_back("default");
-
     return list;
-}
-
-string
-FChTransformF0gram::getCurrentProgram() const {
-    return m_currentProgram;
-}
-
-void
-FChTransformF0gram::selectProgram(string name) {
-
-    m_currentProgram = name;
-
-    if (name == "default") {
-        m_fmax = 10000.f;
-
-        m_warp_params.nsamps_twarp = 2048;
-        m_warp_params.alpha_max = 4;
-        m_warp_params.num_warps = 21;
-        m_warp_params.fact_over_samp = 2;
-        m_warp_params.alpha_dist = 0;
-
-        m_f0_params.f0min = 80.0;
-        m_f0_params.num_octs = 4;
-        m_f0_params.num_f0s_per_oct = 192;
-        m_f0_params.num_f0_hyps = 5;
-        m_f0_params.prefer = true;
-        m_f0_params.prefer_mean = 60;
-        m_f0_params.prefer_stdev = 18;
-
-        m_glogs_params.HP_logS = true;
-        m_glogs_params.att_subharms = 1;
-
-        m_glogs_params.median_poly_coefs[0] = -0.000000058551680;
-        m_glogs_params.median_poly_coefs[1] = -0.000006945207775;
-        m_glogs_params.median_poly_coefs[2] = 0.002357223226588;
-
-        m_glogs_params.sigma_poly_coefs[0] = 0.000000092782308;
-        m_glogs_params.sigma_poly_coefs[1] = 0.000057283574898;
-        m_glogs_params.sigma_poly_coefs[2] = 0.022199903714288;
-
-        m_nfft = m_warp_params.nsamps_twarp;
-        m_hop = m_warp_params.fact_over_samp * 256;
-
-        m_num_f0s = 0;
-
-        m_f0gram_mode = 1;
-
-    }
 }
 
 FChTransformF0gram::OutputList
@@ -983,6 +951,10 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     Feature feature;
     feature.hasTimestamp = false;
 
+    if (m_processingMode == ModeRoughSpectrogram) {
+        feature.values = vector<float>(m_warp_params.nsamps_twarp/2+1, 0.f);
+    }
+
 // ----------------------------------------------------------------------------------------------
 // 		Hanning window & FFT for all warp directions
 
@@ -1000,6 +972,16 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
         // Transform
         fft_xwarping->forward(x_warping, m_auxFanChirpTransform);
+
+        if (m_processingMode == ModeRoughSpectrogram) {
+            for (int i = 0; i < (m_warp_params.nsamps_twarp/2+1); i++) {
+                double abs = sqrt(m_auxFanChirpTransform[i*2]*m_auxFanChirpTransform[i*2]+m_auxFanChirpTransform[i*2+1]*m_auxFanChirpTransform[i*2+1]);
+                if (abs > feature.values[i]) {
+                    feature.values[i] = abs;
+                }
+            }
+            continue;
+        }
 
         // Copy result
         double *aux_abs_fcht = m_absFanChirpTransform + i_warp*(m_warp_params.nsamps_twarp/2+1);
@@ -1040,38 +1022,40 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
             }
         }
     }	
-	
-// ----------------------------------------------------------------------------------------------
 
-    for (int i=m_glogs_init_f0s; i< m_glogs_num_f0s - m_f0_params.num_f0s_per_oct; i++) {
-        switch (m_f0gram_mode) {
-        case 1:		
-            max_glogs = -DBL_MAX;
-            for	(int i_warp = 0; i_warp < m_warp_params.num_warps; i_warp++) {
-                if (m_glogs[i + i_warp*m_glogs_num_f0s] > max_glogs) {
-                    max_glogs = m_glogs[i + i_warp*m_glogs_num_f0s];
-                    ind_max_glogs = i_warp;
+    if (m_processingMode == ModeRoughSpectrogram) {
+
+        // already accumulated our return values in feature
+
+    } else if (m_processingMode == ModeSpectrogram) {
+
+        for (int i = 0; i < m_warp_params.nsamps_twarp/2+1; i++) {
+            feature.values.push_back(pow(10.0, m_absFanChirpTransform[ind_max_glogs * (m_warp_params.nsamps_twarp/2+1) + i]) - 1.0);
+        }
+
+    } else { // f0gram
+
+        for (int i=m_glogs_init_f0s; i< m_glogs_num_f0s - m_f0_params.num_f0s_per_oct; i++) {
+            switch (m_f0gram_mode) {
+            case AllBinsOfBestDirection:
+                feature.values.push_back((float)m_glogs[i+(int)ind_max_glogs*(int)m_glogs_num_f0s]);
+                break;
+            case BestBinOfAllDirections:
+                max_glogs = -DBL_MAX;
+                for (int i_warp = 0; i_warp < m_warp_params.num_warps; i_warp++) {
+                    if (m_glogs[i + i_warp*m_glogs_num_f0s] > max_glogs) {
+                        max_glogs = m_glogs[i + i_warp*m_glogs_num_f0s];
+                        ind_max_glogs = i_warp;
+                    }
                 }
+                feature.values.push_back((float)max_glogs);
+                break;
             }
-            feature.values.push_back((float)max_glogs);
-            break;
-        case 0:
-            feature.values.push_back((float)m_glogs[i+(int)ind_max_glogs*(int)m_glogs_num_f0s]);
-            break;
         }
     }
 
-// ----------------------------------------------------------------------------------------------
-
     fs[0].push_back(feature);
-
-#ifdef DEBUG
-    printf("	----------------------------- \n");
-#endif
-	
     return fs;
-//---------------------------------------------------------------------------
-
 }
 
 FChTransformF0gram::FeatureSet
