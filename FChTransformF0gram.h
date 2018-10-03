@@ -87,8 +87,8 @@ protected:
     double m_fmax; // maximum frequency of interest (Hz)
     int m_nfft; // number of fft points (controls zero-padding)
     int m_hop; // hop in samples in the upsampled signal
+
     int m_num_f0s; // number of f0 values in F0gram grid
-    //vector<float> m_f0s;    // vector of f0 values
     double *m_f0s; // vector of f0 values
 
     typedef struct {

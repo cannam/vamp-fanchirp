@@ -24,7 +24,7 @@
 
 using namespace breakfastquay;
 
-//#define DEBUG
+#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -40,10 +40,8 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_fmax = 10000.f;
     // warping parameters
     m_warp_params.nsamps_twarp = 2048;
-    //m_warp_params.nsamps_twarp = 8;
     m_warp_params.alpha_max = 4;
     m_warp_params.num_warps = 21;
-    //m_warp_params.num_warps = 11;
     m_warp_params.fact_over_samp = 2;
     m_warp_params.alpha_dist = 0;
     // f0 parameters
@@ -74,7 +72,7 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_hop = m_warp_params.fact_over_samp * 256;
 
     m_num_f0s = 0;
-
+    m_f0s = 0;
 }
 
 FChTransformF0gram::~FChTransformF0gram()
@@ -116,6 +114,8 @@ FChTransformF0gram::~FChTransformF0gram()
     deallocate(m_glogs_f0_preference_weights);
     deallocate(m_glogs_median_correction);
     deallocate(m_glogs_sigma_correction);
+
+    deallocate(m_f0s);
 }
 
 string
@@ -483,33 +483,53 @@ FChTransformF0gram::getOutputDescriptors() const {
 
     OutputList list;
 
-    // See OutputDescriptor documentation for the possibilities here.
-    // Every plugin must have at least one output.
+    vector<string> labels;
+    char label[100];
 
-    /* f0 values of F0gram grid as string values */
-    vector<string> f0values;
-    int ind = 0;
-    char f0String[100];
-    while (ind < m_num_f0s) {
-        sprintf(f0String, "%4.2f", m_f0s[ind]);
-        f0values.push_back(f0String);
-        ind++;
+    if (m_processingMode == ModeF0Gram) {
+
+        /* f0 values of F0gram grid as string values */
+        for (int i = 0; i < m_num_f0s; ++i) {
+            sprintf(label, "%4.2f Hz", m_f0s[i]);
+            labels.push_back(label);
+        }
+    
+        /* The F0gram */
+        OutputDescriptor d;
+        d.identifier = "f0gram";
+        d.name = "F0gram: salience of f0s";
+        d.description = "This representation show the salience of the different f0s in the signal.";
+        d.hasFixedBinCount = true;
+        d.binCount = m_f0_params.num_octs * m_f0_params.num_f0s_per_oct;
+        d.binNames = labels;
+        d.hasKnownExtents = false;
+        d.isQuantized = false;
+        d.sampleType = OutputDescriptor::OneSamplePerStep;
+        d.hasDuration = false;
+        list.push_back(d);
+
+    } else {
+
+        for (int i = 0; i < m_warp_params.nsamps_twarp/2+1; ++i) {
+            double freq = i * (m_warpings.fs_warp / m_nfft);
+            sprintf(label, "%4.2f Hz", freq);
+            labels.push_back(label);
+        }
+    
+        OutputDescriptor d;
+        d.identifier = "spectrogram";
+        d.name = "Spectrogram";
+        d.description = "Time/frequency spectrogram derived from the Fan Chirp Transform output";
+        d.hasFixedBinCount = true;
+        d.binCount = m_warp_params.nsamps_twarp/2+1;
+        d.binNames = labels;
+        d.hasKnownExtents = false;
+        d.isQuantized = false;
+        d.sampleType = OutputDescriptor::OneSamplePerStep;
+        d.hasDuration = false;
+        list.push_back(d);
     }
-
-    /* The F0gram */
-    OutputDescriptor d;
-    d.identifier = "f0gram";
-    d.name = "F0gram: salience of f0s";
-    d.description = "This representation show the salience of the different f0s in the signal.";
-    d.hasFixedBinCount = true;
-    d.binCount = m_f0_params.num_octs * m_f0_params.num_f0s_per_oct;
-    d.binNames = f0values;
-    d.hasKnownExtents = false;
-    d.isQuantized = false;
-    d.sampleType = OutputDescriptor::OneSamplePerStep;
-    d.hasDuration = false;
-    list.push_back(d);
-
+    
     return list;
 }
 
@@ -528,13 +548,13 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     // these values in fact are determined by the sampling frequency m_fs
     // the parameters used below correspond to default values i.e. m_fs = 44.100 Hz
     //m_blockSize = 4 * m_warp_params.nsamps_twarp;
-    m_stepSize = floor(m_hop / m_warp_params.fact_over_samp);
-
-    /* initialise m_glogs_params */
-    design_GLogS();
+//    m_stepSize = floor(m_hop / m_warp_params.fact_over_samp);
 
     /* design of FChT */
     design_FChT();
+
+    /* initialise m_glogs_params */
+    design_GLogS();
 
     design_LPF();
 
@@ -545,6 +565,12 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     bool normalize = false;
     Utils::hanning_window(mp_HanningWindow, m_warp_params.nsamps_twarp, normalize);
 
+    m_num_f0s = m_f0_params.num_octs * m_f0_params.num_f0s_per_oct;
+    m_f0s = allocate<double>(m_num_f0s);
+    for (int i = 0; i < m_num_f0s; ++i) {
+        m_f0s[i] = m_glogs_f0[m_glogs_init_f0s + i];
+    }
+    
     return true;
 }
 
@@ -552,8 +578,12 @@ void
 FChTransformF0gram::design_GLogS() {
 
     // total number & initial quantity of f0s
+
+    cerr << "per oct = " << m_f0_params.num_f0s_per_oct << ", octs = " << m_f0_params.num_octs << endl;
     m_glogs_init_f0s = (int)(((double)m_f0_params.num_f0s_per_oct)*log2(5.0))+1;
+    cerr << "init_f0s = " << m_glogs_init_f0s << endl;
     m_glogs_num_f0s = (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct + m_glogs_init_f0s;
+    cerr << "num_f0s = " << m_glogs_num_f0s << endl;
 
     // Initialize arrays
     m_glogs_f0 = allocate<double>(m_glogs_num_f0s);
@@ -584,6 +614,9 @@ FChTransformF0gram::design_GLogS() {
         for (int j = 1; j <= m_glogs_n[i]; j++) {
             // indice en el vector de largo t_warp/2+1 donde el ultimo valor corresponde a f=m_fmax
             aux_pos = ((double)j*m_glogs_f0[i])*((double)(m_warp_params.nsamps_twarp/2+1))/m_fmax;
+//!!!            cerr << "aux_pos = " << aux_pos << endl;
+//            aux_pos = ((double)j*m_glogs_f0[i])*((double)(m_warp_params.nsamps_twarp/2+1))/m_warpings.fs_warp;
+//            cerr << "or " << aux_pos << " (as fs_warp = " << m_warpings.fs_warp << ")" << endl;
             m_glogs_posint[aux_index] = (int)aux_pos;
             m_glogs_posfrac[aux_index] = aux_pos - (double)m_glogs_posint[aux_index];
             aux_index++;
@@ -879,8 +912,8 @@ void FChTransformF0gram::apply_LPF()
     fft_forward_LPF->forward(LPF_time, LPF_frequency);
 
     for (int i = 0; i < m_blockSize/2+1; i++) {
-        LPF_frequency[i*2]     *= mp_LPFWindow[i] * m_warpings.nsamps_torig;
-        LPF_frequency[i*2 + 1] *= mp_LPFWindow[i] * m_warpings.nsamps_torig;
+        LPF_frequency[i*2]     *= mp_LPFWindow[i];
+        LPF_frequency[i*2 + 1] *= mp_LPFWindow[i];
     }
 
     fft_inverse_LPF->inverse(LPF_frequency, LPF_time);
@@ -925,23 +958,24 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     FeatureSet fs;
 	
 #ifdef DEBUG
-    printf("\n	----- DEBUG INFORMATION ----- \n");
-    printf("	m_fs = %f Hz.\n",m_fs);
-    printf("	fs_orig = %f Hz.\n",m_warpings.fs_orig);
-    printf("	fs_warp = %f Hz.\n",m_warpings.fs_warp);
-    printf("	m_nfft = %d.\n",m_nfft);
-    printf("	m_blockSize = %d.\n",m_blockSize);
-    printf("	m_warpings.nsamps_torig = %d.\n",m_warpings.nsamps_torig);
-    printf("	m_warp_params.num_warps = %d.\n",m_warp_params.num_warps);
-    printf("	m_glogs_harmonic_count = %d.\n",m_glogs_harmonic_count);
+    fprintf(stderr, "\n	----- DEBUG INFORMATION ----- \n");
+    fprintf(stderr, "	m_fs = %f Hz.\n",m_fs);
+    fprintf(stderr, "	fs_orig = %f Hz.\n",m_warpings.fs_orig);
+    fprintf(stderr, "	fs_warp = %f Hz.\n",m_warpings.fs_warp);
+    fprintf(stderr, "	m_nfft = %d.\n",m_nfft);
+    fprintf(stderr, "	m_blockSize = %d.\n",m_blockSize);
+    fprintf(stderr, "	m_warpings.nsamps_torig = %d.\n",m_warpings.nsamps_torig);
+    fprintf(stderr, "	m_warp_params.num_warps = %d.\n",m_warp_params.num_warps);
+    fprintf(stderr, "	m_glogs_harmonic_count = %d.\n",m_glogs_harmonic_count);
 #endif
 
     for (int i = 0; i < m_blockSize; i++) {
         LPF_time[i] = (double)(inputBuffers[0][i]) * m_timeWindow[i];
+        LPF_time[m_blockSize+i] = 0.0;
     }
 
 //	#ifdef DEBUG
-//		printf("	HASTA ACÁ ANDA!!!\n");
+//		fprintf(stderr, "	HASTA ACÁ ANDA!!!\n");
 //		cout << flush;
 //	#endif
 
@@ -962,6 +996,7 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     int ind_max_glogs = 0;
 
     for (int i_warp = 0; i_warp < m_warp_params.num_warps; i_warp++) {
+        
         // Interpolate
         Utils::interp1q(LPF_time, (m_warpings.pos_int) + i_warp*m_warp_params.nsamps_twarp, m_warpings.pos_frac + i_warp*m_warp_params.nsamps_twarp, x_warping, m_warp_params.nsamps_twarp);
 
@@ -1087,7 +1122,7 @@ FChTransformF0gram::design_time_window() {
 #ifdef DEBUG
     for (int i = 0; i < m_blockSize; i++) {
         if ((i<transitionWidth)) {
-            printf("	m_timeWindow[%d] = %f.\n",i,m_timeWindow[i]);
+            fprintf(stderr, "	m_timeWindow[%d] = %f.\n",i,m_timeWindow[i]);
         }
     }
 #endif
