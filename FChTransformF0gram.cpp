@@ -34,8 +34,9 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
                                        float inputSampleRate) :
     Plugin(inputSampleRate),
     m_processingMode(mode),
-    m_stepSize(0), // We are using 0 for step and block size to indicate "not yet set".
-    m_blockSize(0) {
+    m_initialised(false),
+    m_stepSize(256),
+    m_blockSize(8192) {
 
     m_fs = inputSampleRate;
     // max frequency of interest (Hz)
@@ -79,10 +80,12 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
 
 FChTransformF0gram::~FChTransformF0gram()
 {
-    if (!m_blockSize) {
+    if (!m_initialised) {
         return; // nothing was allocated
     }
 
+    deallocate(m_inputBuffer);
+    
     deallocate(m_warpings.pos_int);
     deallocate(m_warpings.pos_frac);
     deallocate(m_warpings.chirp_rates);
@@ -183,14 +186,13 @@ FChTransformF0gram::getInputDomain() const {
 }
 
 size_t FChTransformF0gram::getPreferredBlockSize() const {
-    return 8192; // 0 means "I can handle any block size"
+    // We do our own accumulating into blocks within process()
+    return m_blockSize/2;
 }
 
 size_t
 FChTransformF0gram::getPreferredStepSize() const {
-    return 256; // 0 means "anything sensible"; in practice this
-    // means the same as the block size for TimeDomain
-    // plugins, or half of it for FrequencyDomain plugins
+    return m_stepSize;
 }
 
 size_t
@@ -554,14 +556,14 @@ FChTransformF0gram::getOutputDescriptors() const {
 bool
 FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSize) {
     if (channels < getMinChannelCount() ||
-        channels > getMaxChannelCount()) {
+        channels > getMaxChannelCount() ||
+        blockSize != m_blockSize/2 ||
+        stepSize != m_stepSize) {
         return false;
     }
 
-    // set blockSize and stepSize (but changed below)
-    m_blockSize = blockSize;
-    m_stepSize = stepSize;
-
+    m_inputBuffer = allocate_and_zero<float>(m_blockSize);
+    
     // WARNING !!!
     // these values in fact are determined by the sampling frequency m_fs
     // the parameters used below correspond to default values i.e. m_fs = 44.100 Hz
@@ -588,7 +590,8 @@ FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSiz
     for (int i = 0; i < m_num_f0s; ++i) {
         m_f0s[i] = m_glogs_f0[m_glogs_init_f0s + i];
     }
-    
+
+    m_initialised = true;
     return true;
 }
 
@@ -677,13 +680,6 @@ FChTransformF0gram::design_GLogS() {
 void
 FChTransformF0gram::design_FChT() {
 
-    /*
-     * FILES FOR DEBUGGING
-     */
-
-    //ofstream output("output.txt");
-
-
     /*  =============  WARPING DESIGN   ============= */
 
     // sampling frequency after oversampling
@@ -726,39 +722,9 @@ FChTransformF0gram::design_FChT() {
     // design of warpings for efficient interpolation
     design_warps(freq_relative, t_orig, t_warp);
 
-
-    /*
-     * FILES FOR DEBUGGING
-     */
-
-    /*
-      output << "chirp_rates" << endl;
-      for (int j = 0; j < m_warp_params.num_warps; j++){
-      output << m_warpings.chirp_rates[j];
-      output << " ";
-      }
-      output << endl << "freq_relative" << endl;
-
-      for (int i = 0; i < m_warpings.nsamps_torig; i++){
-      for (int j = 0; j < m_warp_params.num_warps; j++){
-      output << freq_relative[j * m_warpings.nsamps_torig + i];
-      output << " ";
-      }
-      output << endl;
-      }
-
-      output << endl << "t_orig" << endl;
-
-      for (int i = 0; i < m_warpings.nsamps_torig; i++){
-      output << t_orig[i] << endl ;
-      }
-    */
-
     deallocate(freq_relative);
     deallocate(t_orig);
     deallocate(t_warp);
-
-    //output.close();
 
     /*  =============  FFTW PLAN DESIGN   ============= */
     // Initialize 2-d array for warped signals
@@ -931,7 +897,7 @@ void FChTransformF0gram::apply_LPF()
     }
 
     fft_inverse_LPF->inverse(LPF_frequency, LPF_time);
-
+    
     // TODO ver si hay que hacer fftshift para corregir la fase respecto al centro del frame.
     // nota: además de aplicar el LPF, esta función resamplea la señal original.
 }
@@ -952,9 +918,8 @@ void FChTransformF0gram::reset()
 FChTransformF0gram::FeatureSet
 FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
 
-    //    // Do actual work!
-    //
-
+    if (!m_initialised) return FeatureSet();
+    
     /* PSEUDOCÓDIGO:
        - Aplicar FFT al frame entero.	
        - Filtro pasabajos en frecuencia.
@@ -983,16 +948,19 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     fprintf(stderr, "	m_glogs_harmonic_count = %d.\n",m_glogs_harmonic_count);
 #endif
 
-    for (int i = 0; i < m_blockSize; i++) {
-        LPF_time[i] = (double)(inputBuffers[0][i]) * m_timeWindow[i];
-        LPF_time[m_blockSize+i] = 0.0;
+    for (int i = 0; i < m_blockSize - m_stepSize; ++i) {
+        m_inputBuffer[i] = m_inputBuffer[i + m_stepSize];
     }
-
-//	#ifdef DEBUG
-//		fprintf(stderr, "	HASTA ACÁ ANDA!!!\n");
-//		cout << flush;
-//	#endif
-
+    for (int i = 0; i < m_blockSize/2; ++i) {
+        m_inputBuffer[m_blockSize/2 + i] = inputBuffers[0][i];
+    }
+    for (int i = 0; i < m_blockSize; ++i) {
+        LPF_time[i] = m_inputBuffer[i] * m_timeWindow[i];
+    }
+    for (int i = 0; i < m_blockSize; ++i) {
+        LPF_time[m_blockSize + i] = 0.0;
+    }
+        
     apply_LPF();
     // Señal filtrada queda en LPF_time
 
@@ -1139,11 +1107,10 @@ FChTransformF0gram::getRemainingFeatures() {
 void
 FChTransformF0gram::design_time_window() {
 
-    int transitionWidth = (int)m_blockSize/128 + 1;;
+    int transitionWidth = (int)m_blockSize/128 + 128;
     m_timeWindow = allocate<double>(m_blockSize);
     double *lp_transitionWindow = allocate<double>(transitionWidth);
 
-    //memset(m_timeWindow, 1.0, m_blockSize);
     for (int i = 0; i < m_blockSize; i++) {
         m_timeWindow[i] = 1.0;
     }

@@ -76,9 +76,11 @@ public:
 
 protected:
     ProcessingMode m_processingMode;
+    bool m_initialised;
     int m_stepSize;
     int m_blockSize;
     float m_fs; // input sampling rate (inputSampleRate)
+    float *m_inputBuffer;
 
     // plugin-specific data and methods go here
 
