@@ -707,8 +707,6 @@ FChTransformF0gram::design_FChT() {
     deallocate(t_orig);
     deallocate(t_warp);
 
-    /*  =============  FFTW PLAN DESIGN   ============= */
-    // Initialize 2-d array for warped signals
     x_warping = allocate<double>(m_warp_params.nsamps_twarp);
     m_absFanChirpTransform = allocate<double>(m_warp_params.num_warps * (m_warp_params.nsamps_twarp/2 + 1));
     m_auxFanChirpTransform = allocate<double>(2 * (m_warp_params.nsamps_twarp/2 + 1));
