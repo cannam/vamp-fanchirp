@@ -20,15 +20,24 @@
 
 #include <string.h>
 
+#include "bqvec/Restrict.h"
+
 class Utils
 {
 public:
     static void interp1(const double *x1,const double *y1, int N1, const double *x2, double *y2, int N2);
 
-    static void interp1q(const double *y1, const int *x2_int, const double *x2_frac, double *y2, int N2){
-        for(int i=0;i<N2;i++){
-            y2[i] = y1[x2_int[i]]*(1.0-x2_frac[i])+y1[x2_int[i]+1]*x2_frac[i];
-        } // for
+    static void interp1q(const double *const BQ_R__ y1,
+                         const int *const BQ_R__ x2_int,
+                         const double *const BQ_R__ x2_frac,
+                         double *const BQ_R__ y2,
+                         int const n2)
+    {
+        for (int i = 0; i < n2; ++i) {
+            double f = x2_frac[i];
+            int j = x2_int[i];
+            y2[i] = y1[j] * (1.0-f) + y1[j+1] * f;
+        }
     }
 
     static void cumtrapz(const double *x, const double *y, int N, double *accum);

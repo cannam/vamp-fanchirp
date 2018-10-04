@@ -26,7 +26,7 @@
 
 using namespace breakfastquay;
 
-#define DEBUG
+//#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -600,11 +600,8 @@ FChTransformF0gram::design_GLogS() {
 
     // total number & initial quantity of f0s
 
-    cerr << "per oct = " << m_f0_params.num_f0s_per_oct << ", octs = " << m_f0_params.num_octs << endl;
     m_glogs_init_f0s = (int)(((double)m_f0_params.num_f0s_per_oct)*log2(5.0))+1;
-    cerr << "init_f0s = " << m_glogs_init_f0s << endl;
     m_glogs_num_f0s = (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct + m_glogs_init_f0s;
-    cerr << "num_f0s = " << m_glogs_num_f0s << endl;
 
     // Initialize arrays
     m_glogs_f0 = allocate<double>(m_glogs_num_f0s);
@@ -1023,7 +1020,6 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
         Utils::interp1q(m_glogs + i_warp*m_glogs_num_f0s, m_glogs_fifth_harmonic_posint, m_glogs_fifth_harmonic_posfrac, m_glogs_fifth_harmonic, (m_f0_params.num_octs+1)*m_f0_params.num_f0s_per_oct);
         for (int i = m_glogs_num_f0s-1; i >= m_glogs_init_f0s; i--) {
             m_glogs[i + i_warp*m_glogs_num_f0s] -= MAX(MAX(m_glogs[i-m_f0_params.num_f0s_per_oct + i_warp*m_glogs_num_f0s],m_glogs_third_harmonic[i-m_glogs_init_f0s]),m_glogs_fifth_harmonic[i-m_glogs_init_f0s]);
-            //m_glogs[i] -= MAX(m_glogs[i-m_f0_params.num_f0s_per_oct],m_glogs_third_harmonic[i-m_glogs_init_f0s]);
         }
         for (int i = m_glogs_init_f0s; i < m_glogs_num_f0s-m_f0_params.num_f0s_per_oct; i++) {
             m_glogs[i + i_warp*m_glogs_num_f0s] -= 0.3*m_glogs[i+m_f0_params.num_f0s_per_oct + i_warp*m_glogs_num_f0s];
