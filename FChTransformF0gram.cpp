@@ -26,7 +26,7 @@
 
 using namespace breakfastquay;
 
-//#define DEBUG
+#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -38,6 +38,13 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_stepSize(256),
     m_blockSize(8192) {
 
+    nsamp_options.push_back(256);
+    nsamp_options.push_back(512);
+    nsamp_options.push_back(1024);
+    nsamp_options.push_back(2048);
+    nsamp_options.push_back(4096);
+    nsamp_options.push_back(8192);
+    
     m_fs = inputSampleRate;
     // max frequency of interest (Hz)
     m_fmax = 10000.f;
@@ -67,11 +74,6 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_glogs_params.sigma_poly_coefs[0] = 0.000000092782308;
     m_glogs_params.sigma_poly_coefs[1] = 0.000057283574898;
     m_glogs_params.sigma_poly_coefs[2] = 0.022199903714288;
-
-    // number of fft points (controls zero-padding)
-    m_nfft = m_warp_params.nsamps_twarp;
-    // hop in samples
-    m_hop = m_warp_params.fact_over_samp * 256;
 
     m_num_f0s = 0;
     m_f0s = 0;
@@ -234,34 +236,22 @@ FChTransformF0gram::getParameterDescriptors() const {
     list.push_back(fmax);
 
     ParameterDescriptor nsamp;
-    nsamp.identifier = "nsamp";
+    nsamp.identifier = "nsamp_ix";
     nsamp.name = "Number of samples";
     nsamp.description = "Number of samples of the time warped frame";
-    nsamp.unit = "samples";
-    nsamp.minValue = 128;
-    nsamp.maxValue = 4096;
-    nsamp.defaultValue = 2048;
+    nsamp.minValue = 0;
+    nsamp.maxValue = nsamp_options.size()-1;
+    nsamp.defaultValue = 3;
+    nsamp.isQuantized = true;
+    nsamp.quantizeStep = 1.0;
+    char label[100];
+    for (int i = 0; i < int(nsamp_options.size()); ++i) {
+        sprintf(label, "%d", nsamp_options[i]);
+        nsamp.valueNames.push_back(label);
+    }
     nsamp.isQuantized = true;
     nsamp.quantizeStep = 1.0;
     list.push_back(nsamp);
-
-    ParameterDescriptor nfft;
-    nfft.identifier = "nfft";
-    nfft.name = "FFT number of points";
-    nfft.description = "Number of FFT points (controls zero-padding)";
-    nfft.unit = "samples";
-    nfft.minValue = 0;
-    nfft.maxValue = 4;
-    nfft.defaultValue = 3;
-    nfft.isQuantized = true;
-    nfft.quantizeStep = 1.0;
-    nfft.valueNames.push_back("256");
-    nfft.valueNames.push_back("512");
-    nfft.valueNames.push_back("1024");
-    nfft.valueNames.push_back("2048");
-    nfft.valueNames.push_back("4096");
-    nfft.valueNames.push_back("8192");
-    list.push_back(nfft);
 
     ParameterDescriptor alpha_max;
     alpha_max.identifier = "alpha_max";
@@ -396,16 +386,19 @@ FChTransformF0gram::getParameter(string identifier) const {
 
     if (identifier == "fmax") {
         return m_fmax;
-    } else if (identifier == "nsamp") {
-        return m_warp_params.nsamps_twarp;
+    } else if (identifier == "nsamp_ix") {
+        for (int i = 0; i < int(nsamp_options.size()); ++i) {
+            if (m_warp_params.nsamps_twarp == nsamp_options[i]) {
+                return i;
+            }
+        }
+        throw std::logic_error("internal error: nsamps_twarp not in nsamp_options");
     } else if (identifier == "alpha_max") {
         return m_warp_params.alpha_max;
     } else if (identifier == "num_warps") {
         return m_warp_params.num_warps;
     } else if (identifier == "alpha_dist") {
         return m_warp_params.alpha_dist;
-    } else if (identifier == "nfft") {
-        return m_nfft;
     } else if (identifier == "f0min") {
         return m_f0_params.f0min;
     } else if (identifier == "num_octs") {
@@ -430,16 +423,20 @@ void FChTransformF0gram::setParameter(string identifier, float value)
 {
     if (identifier == "fmax") {
         m_fmax = value;
-    } else if (identifier == "nsamp") {
-        m_warp_params.nsamps_twarp = value;
+    } else if (identifier == "nsamp_ix") {
+        int n = int(roundf(value));
+        for (int i = 0; i < int(nsamp_options.size()); ++i) {
+            if (i == n) {
+                m_warp_params.nsamps_twarp = nsamp_options[i];
+                m_blockSize = m_warp_params.nsamps_twarp * 4;
+            }
+        }
     } else if (identifier == "alpha_max") {
         m_warp_params.alpha_max = value;
     } else if (identifier == "num_warps") {
         m_warp_params.num_warps = value;
     } else if (identifier == "alpha_dist") {
         m_warp_params.alpha_dist = value;
-    } else if (identifier == "nfft") {
-        m_nfft = value;
     } else if (identifier == "f0min") {
         m_f0_params.f0min = value;
     } else if (identifier == "num_octs") {
@@ -514,7 +511,7 @@ FChTransformF0gram::getOutputDescriptors() const {
     } else {
 
         for (int i = 0; i < m_warp_params.nsamps_twarp/2+1; ++i) {
-            double freq = i * (m_warpings.fs_warp / m_nfft);
+            double freq = i * (m_warpings.fs_warp / m_warp_params.nsamps_twarp);
             sprintf(label, "%4.2f Hz", freq);
             labels.push_back(label);
         }
@@ -925,9 +922,9 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     fprintf(stderr, "	m_fs = %f Hz.\n",m_fs);
     fprintf(stderr, "	fs_orig = %f Hz.\n",m_warpings.fs_orig);
     fprintf(stderr, "	fs_warp = %f Hz.\n",m_warpings.fs_warp);
-    fprintf(stderr, "	m_nfft = %d.\n",m_nfft);
     fprintf(stderr, "	m_blockSize = %d.\n",m_blockSize);
     fprintf(stderr, "	m_warpings.nsamps_torig = %d.\n",m_warpings.nsamps_torig);
+    fprintf(stderr, "	m_warp_params.nsamps_twarp = %d.\n",m_warp_params.nsamps_twarp);
     fprintf(stderr, "	m_warp_params.num_warps = %d.\n",m_warp_params.num_warps);
     fprintf(stderr, "	m_glogs_harmonic_count = %d.\n",m_glogs_harmonic_count);
 #endif

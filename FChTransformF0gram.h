@@ -87,12 +87,11 @@ protected:
     // =============  WARPING PARAMETERS  =============
 
     double m_fmax; // maximum frequency of interest (Hz)
-    int m_nfft; // number of fft points (controls zero-padding)
-    int m_hop; // hop in samples in the upsampled signal
-
     int m_num_f0s; // number of f0 values in F0gram grid
     double *m_f0s; // vector of f0 values
 
+    vector<int> nsamp_options;
+    
     typedef struct {
         int nsamps_twarp; // number of samples of the warped signal frame
         double alpha_max; // maximum value of normalized frequency deviation (alpha)
