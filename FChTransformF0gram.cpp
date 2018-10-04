@@ -125,6 +125,7 @@ FChTransformF0gram::getIdentifier() const {
     case ModeSpectrogram: return "fchtransformspectrogram";
     case ModeRoughSpectrogram: return "fchtransformrough";
     }
+    throw std::logic_error("unknown mode");
 }
 
 string
@@ -134,6 +135,7 @@ FChTransformF0gram::getName() const {
     case ModeSpectrogram: return "Fan Chirp Transform Spectrogram";
     case ModeRoughSpectrogram: return "Fan Chirp Transform Rough Spectrogram";
     }
+    throw std::logic_error("unknown mode");
 }
 
 string
@@ -146,6 +148,7 @@ FChTransformF0gram::getDescription() const {
     case ModeRoughSpectrogram:
         return "This plug-in produces a more approximate spectral representation of the audio using Fan Chirp Transform analysis.";
     }
+    throw std::logic_error("unknown mode");
 }
 
 string
