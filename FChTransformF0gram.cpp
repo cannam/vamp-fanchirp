@@ -355,8 +355,8 @@ FChTransformF0gram::getParameterDescriptors() const {
 
     ParameterDescriptor f0_prefer_fun;
     f0_prefer_fun.identifier = "f0_prefer_fun";
-    f0_prefer_fun.name = "f0 preference function";
-    f0_prefer_fun.description = "Whether to use a f0 weighting function.";
+    f0_prefer_fun.name = "Use f0 weighting";
+    f0_prefer_fun.description = "Whether to use a f0 weighting function to prefer frequencies nearer a mean value.";
     f0_prefer_fun.unit = "";
     f0_prefer_fun.minValue = 0;
     f0_prefer_fun.maxValue = 1;
@@ -367,7 +367,7 @@ FChTransformF0gram::getParameterDescriptors() const {
 
     ParameterDescriptor f0_prefer_mean;
     f0_prefer_mean.identifier = "f0_prefer_mean";
-    f0_prefer_mean.name = "mean f0 preference function";
+    f0_prefer_mean.name = "Mean pitch for f0 weighting";
     f0_prefer_mean.description = "Mean value for f0 weighting function (MIDI number).";
     f0_prefer_mean.unit = "";
     f0_prefer_mean.minValue = 1;
@@ -379,8 +379,8 @@ FChTransformF0gram::getParameterDescriptors() const {
 
     ParameterDescriptor f0_prefer_stdev;
     f0_prefer_stdev.identifier = "f0_prefer_stdev";
-    f0_prefer_stdev.name = "stdev of f0 preference function";
-    f0_prefer_stdev.description = "Stdev for f0 weighting function (MIDI number).";
+    f0_prefer_stdev.name = "Stdev for f0 weighting";
+    f0_prefer_stdev.description = "Standard deviation for f0 weighting function (MIDI number).";
     f0_prefer_stdev.unit = "";
     f0_prefer_stdev.minValue = 1;
     f0_prefer_stdev.maxValue = 127;
@@ -428,7 +428,7 @@ FChTransformF0gram::getParameter(string identifier) const {
     } else if (identifier == "num_f0_hyps") {
         return m_f0_params.num_f0_hyps;
     } else if (identifier == "f0_prefer_fun") {
-        return m_f0_params.prefer;
+        return m_f0_params.prefer ? 1.0 : 0.0;
     } else if (identifier == "f0_prefer_mean") {
         return m_f0_params.prefer_mean;
     } else if (identifier == "f0_prefer_stdev") {
@@ -464,7 +464,7 @@ void FChTransformF0gram::setParameter(string identifier, float value)
     } else if (identifier == "num_f0_hyps") {
         m_f0_params.num_f0_hyps = value;
     } else if (identifier == "f0_prefer_fun") {
-        m_f0_params.prefer = value;
+        m_f0_params.prefer = (value > 0.5);
     } else if (identifier == "f0_prefer_mean") {
         m_f0_params.prefer_mean = value;
     } else if (identifier == "f0_prefer_stdev") {
@@ -665,9 +665,13 @@ FChTransformF0gram::design_GLogS() {
     m_glogs_sigma_correction = allocate<double>(m_f0_params.num_octs*m_f0_params.num_f0s_per_oct);
     double MIDI_value;
     for (int i = 0; i < m_f0_params.num_octs*m_f0_params.num_f0s_per_oct; i++) {
-        MIDI_value = 69.0 + 12.0 * log2(m_glogs_f0[i + m_glogs_init_f0s]/440.0);
-        m_glogs_f0_preference_weights[i] = 1.0/sqrt(2.0*M_PI*m_f0_params.prefer_stdev*m_f0_params.prefer_stdev)*exp(-(MIDI_value-m_f0_params.prefer_mean)*(MIDI_value-m_f0_params.prefer_mean)/(2.0*m_f0_params.prefer_stdev*m_f0_params.prefer_stdev));
-        m_glogs_f0_preference_weights[i] = (0.01 + m_glogs_f0_preference_weights[i]) / (1.01);
+        if (m_f0_params.prefer) {
+            MIDI_value = 69.0 + 12.0 * log2(m_glogs_f0[i + m_glogs_init_f0s]/440.0);
+            m_glogs_f0_preference_weights[i] = 1.0/sqrt(2.0*M_PI*m_f0_params.prefer_stdev*m_f0_params.prefer_stdev)*exp(-(MIDI_value-m_f0_params.prefer_mean)*(MIDI_value-m_f0_params.prefer_mean)/(2.0*m_f0_params.prefer_stdev*m_f0_params.prefer_stdev));
+            m_glogs_f0_preference_weights[i] = (0.01 + m_glogs_f0_preference_weights[i]) / (1.01);
+        } else {
+            m_glogs_f0_preference_weights[i] = 1.0;
+        }
 		
         m_glogs_median_correction[i] = m_glogs_params.median_poly_coefs[0]*(i+1.0)*(i+1.0) + m_glogs_params.median_poly_coefs[1]*(i+1.0) + m_glogs_params.median_poly_coefs[2];
         m_glogs_sigma_correction[i] = 1.0 / (m_glogs_params.sigma_poly_coefs[0]*(i+1.0)*(i+1.0) + m_glogs_params.sigma_poly_coefs[1]*(i+1.0) + m_glogs_params.sigma_poly_coefs[2]);
