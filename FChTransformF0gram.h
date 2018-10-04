@@ -108,6 +108,7 @@ protected:
         double f0min; // minimun fundamental frequency
         int num_octs; // number of octaves
         int num_f0s_per_oct; // number of f0s per octave
+        int max_partials; // maximum partial count per f0 (0 = unlimited up to max freq)
         bool prefer; // whether to use a f0 preference guassian function
         int prefer_mean; // mean of f0 preference function (MIDI number for C4)
         int prefer_stdev; // stdev of f0 preference function (stdev in MIDI numbers)

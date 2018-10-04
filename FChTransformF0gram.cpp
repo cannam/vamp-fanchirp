@@ -26,7 +26,7 @@
 
 using namespace breakfastquay;
 
-#define DEBUG
+//#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -58,6 +58,7 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_f0_params.f0min = 80.0;
     m_f0_params.num_octs = 4;
     m_f0_params.num_f0s_per_oct = 192;
+    m_f0_params.max_partials = 200;
     m_f0_params.prefer = true;
     m_f0_params.prefer_mean = 60;
     m_f0_params.prefer_stdev = 18;
@@ -330,6 +331,18 @@ FChTransformF0gram::getParameterDescriptors() const {
     f0s_per_oct.quantizeStep = 1.0;
     list.push_back(f0s_per_oct);
 
+    ParameterDescriptor f0s_max_partials;
+    f0s_max_partials.identifier = "f0s_max_partials";
+    f0s_max_partials.name = "Max partials per f0";
+    f0s_max_partials.description = "Maximum number of partials to take into account for each f0 value. 0 = no limit (up to max frequency).";
+    f0s_max_partials.unit = "";
+    f0s_max_partials.minValue = 0;
+    f0s_max_partials.maxValue = 500;
+    f0s_max_partials.defaultValue = 200;
+    f0s_max_partials.isQuantized = true;
+    f0s_max_partials.quantizeStep = 10;
+    list.push_back(f0s_max_partials);
+
     ParameterDescriptor f0_prefer_fun;
     f0_prefer_fun.identifier = "f0_prefer_fun";
     f0_prefer_fun.name = "Use f0 weighting";
@@ -405,6 +418,8 @@ FChTransformF0gram::getParameter(string identifier) const {
         return m_f0_params.num_octs;
     } else if (identifier == "f0s_per_oct") {
         return m_f0_params.num_f0s_per_oct;
+    } else if (identifier == "f0s_max_partials") {
+        return m_f0_params.max_partials;
     } else if (identifier == "f0_prefer_fun") {
         return m_f0_params.prefer ? 1.0 : 0.0;
     } else if (identifier == "f0_prefer_mean") {
@@ -443,6 +458,8 @@ void FChTransformF0gram::setParameter(string identifier, float value)
         m_f0_params.num_octs = value;
     } else if (identifier == "f0s_per_oct") {
         m_f0_params.num_f0s_per_oct = value;
+    } else if (identifier == "f0s_max_partials") {
+        m_f0_params.max_partials = int(roundf(value));
     } else if (identifier == "f0_prefer_fun") {
         m_f0_params.prefer = (value > 0.5);
     } else if (identifier == "f0_prefer_mean") {
@@ -596,6 +613,11 @@ FChTransformF0gram::design_GLogS() {
         m_glogs_f0[i] = (m_f0_params.f0min/5.0)*pow(2.0,(double)i/(double)m_f0_params.num_f0s_per_oct);
         // for every f0 compute number of partials less or equal than m_fmax.
         m_glogs_n[i] = m_fmax*factor/m_glogs_f0[i];
+        if (m_f0_params.max_partials > 0) {
+            if (m_glogs_n[i] > m_f0_params.max_partials) {
+                m_glogs_n[i] = m_f0_params.max_partials;
+            }
+        }
         m_glogs_index[i] = m_glogs_harmonic_count; 
         m_glogs_harmonic_count += m_glogs_n[i];
     }
@@ -1010,7 +1032,7 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
             // Median, sigma $ weights correction
             m_glogs[i + i_warp*m_glogs_num_f0s] = (m_glogs[i + i_warp*m_glogs_num_f0s]-m_glogs_median_correction[i-m_glogs_init_f0s])*m_glogs_sigma_correction[i-m_glogs_init_f0s]*m_glogs_f0_preference_weights[i-m_glogs_init_f0s];
         }
-	
+
         // Look for maximum value to determine best direction
         for (int i = m_glogs_init_f0s; i < m_glogs_num_f0s-m_f0_params.num_f0s_per_oct; i++) {
             if (m_glogs[i + i_warp*m_glogs_num_f0s] > max_glogs) {
