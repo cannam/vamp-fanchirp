@@ -51,7 +51,6 @@ FChTransformF0gram::FChTransformF0gram(ProcessingMode mode,
     m_f0_params.f0min = 80.0;
     m_f0_params.num_octs = 4;
     m_f0_params.num_f0s_per_oct = 192;
-    m_f0_params.num_f0_hyps = 5;
     m_f0_params.prefer = true;
     m_f0_params.prefer_mean = 60;
     m_f0_params.prefer_stdev = 18;
@@ -329,18 +328,6 @@ FChTransformF0gram::getParameterDescriptors() const {
     num_octs.quantizeStep = 1.0;
     list.push_back(num_octs);
 
-    ParameterDescriptor num_f0_hyps;
-    num_f0_hyps.identifier = "num_f0_hyps";
-    num_f0_hyps.name = "number of f0 hypotesis";
-    num_f0_hyps.description = "Number of f0 hypotesis to extract.";
-    num_f0_hyps.unit = "";
-    num_f0_hyps.minValue = 1;
-    num_f0_hyps.maxValue = 100;
-    num_f0_hyps.defaultValue = 10;
-    num_f0_hyps.isQuantized = true;
-    num_f0_hyps.quantizeStep = 1.0;
-    list.push_back(num_f0_hyps);
-
     ParameterDescriptor f0s_per_oct;
     f0s_per_oct.identifier = "f0s_per_oct";
     f0s_per_oct.name = "f0 values per octave";
@@ -425,8 +412,6 @@ FChTransformF0gram::getParameter(string identifier) const {
         return m_f0_params.num_octs;
     } else if (identifier == "f0s_per_oct") {
         return m_f0_params.num_f0s_per_oct;
-    } else if (identifier == "num_f0_hyps") {
-        return m_f0_params.num_f0_hyps;
     } else if (identifier == "f0_prefer_fun") {
         return m_f0_params.prefer ? 1.0 : 0.0;
     } else if (identifier == "f0_prefer_mean") {
@@ -461,8 +446,6 @@ void FChTransformF0gram::setParameter(string identifier, float value)
         m_f0_params.num_octs = value;
     } else if (identifier == "f0s_per_oct") {
         m_f0_params.num_f0s_per_oct = value;
-    } else if (identifier == "num_f0_hyps") {
-        m_f0_params.num_f0_hyps = value;
     } else if (identifier == "f0_prefer_fun") {
         m_f0_params.prefer = (value > 0.5);
     } else if (identifier == "f0_prefer_mean") {
