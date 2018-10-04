@@ -26,7 +26,7 @@
 
 using namespace breakfastquay;
 
-#define DEBUG
+//#define DEBUG
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -537,8 +537,8 @@ bool
 FChTransformF0gram::initialise(size_t channels, size_t stepSize, size_t blockSize) {
     if (channels < getMinChannelCount() ||
         channels > getMaxChannelCount() ||
-        blockSize != m_blockSize/2 ||
-        stepSize != m_stepSize) {
+        int(blockSize) != m_blockSize/2 ||
+        int(stepSize) != m_stepSize) {
         return false;
     }
 
