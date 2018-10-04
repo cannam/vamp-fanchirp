@@ -1,5 +1,8 @@
 {
   "libraries": {
+    "vamp-plugin-sdk": {
+      "pin": "da86fb0bccb3"
+    },
     "bqvec": {
       "pin": "3c9de9e7f6e8"
     }

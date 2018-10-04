@@ -41,10 +41,15 @@ PLUGIN_HEADERS := FChTransformF0gram.h FChTransformUtils.h
 SRC_DIR		:= .
 
 # Defaults, overridden from the platform-specific Makefile
-VAMPSDK_DIR	?= ../vamp-plugin-sdk
+VAMPSDK_DIR	?= ext/vamp-plugin-sdk
 PLUGIN_EXT	?= .so
 CXX 		?= g++
 CC 		?= gcc
+
+VAMP_SOURCES	:= \
+	$(VAMPSDK_DIR)/src/vamp-sdk/PluginAdapter.cpp \
+	$(VAMPSDK_DIR)/src/vamp-sdk/FFT.cpp \
+	$(VAMPSDK_DIR)/src/vamp-sdk/RealTime.cpp
 
 CFLAGS		:= $(ARCHFLAGS) $(CFLAGS)
 CXXFLAGS	:= $(CFLAGS) -I. -I$(VAMPSDK_DIR) -Iext/bqvec $(CXXFLAGS)
@@ -54,13 +59,16 @@ PLUGIN_LDFLAGS	:= $(LDFLAGS) $(PLUGIN_LDFLAGS)
 
 PLUGIN 		:= $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 
-PLUGIN_OBJECTS 	:= $(PLUGIN_SOURCES:.cpp=.o)
+PLUGIN_OBJECTS 	:= $(PLUGIN_SOURCES:.cpp=.o) $(VAMP_SOURCES:.cpp=.o)
 PLUGIN_OBJECTS 	:= $(PLUGIN_OBJECTS:.c=.o)
 
 $(PLUGIN): $(PLUGIN_OBJECTS) 
-	   $(CXX) -o $@ $^ $(PLUGIN_LDFLAGS)
+	$(CXX) -o $@ $^ $(PLUGIN_LDFLAGS)
 
-$(PLUGIN_OBJECTS): $(PLUGIN_HEADERS)
+$(PLUGIN_OBJECTS): .repoint.point $(PLUGIN_HEADERS)
+
+.repoint.point:    repoint-project.json
+	./repoint install
 
 clean:
 	rm -f $(PLUGIN_OBJECTS)

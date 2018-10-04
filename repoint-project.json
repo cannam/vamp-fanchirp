@@ -10,6 +10,10 @@
         }
     },
     "libraries": {
+        "vamp-plugin-sdk": {
+            "vcs": "hg",
+            "service": "soundsoftware"
+	},
         "bqvec": {
             "vcs": "hg",
             "service": "bitbucket",
