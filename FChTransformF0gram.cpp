@@ -20,6 +20,8 @@
 #include <math.h>
 #include <float.h>
 
+#include <set>
+
 #include "bqvec/Allocators.h"
 
 using namespace breakfastquay;
@@ -500,11 +502,24 @@ FChTransformF0gram::getOutputDescriptors() const {
         /* The F0gram */
         OutputDescriptor d;
         d.identifier = "f0gram";
-        d.name = "F0gram: salience of f0s";
-        d.description = "This representation show the salience of the different f0s in the signal.";
+        d.name = "F0gram";
+        d.description = "The salience of the different f0s in the signal.";
         d.hasFixedBinCount = true;
         d.binCount = m_f0_params.num_octs * m_f0_params.num_f0s_per_oct;
         d.binNames = labels;
+        d.hasKnownExtents = false;
+        d.isQuantized = false;
+        d.sampleType = OutputDescriptor::OneSamplePerStep;
+        d.hasDuration = false;
+        list.push_back(d);
+
+        d.identifier = "pitch";
+        d.name = "Most salient pitch";
+        d.description = "The most salient f0 in the signal for each time step.";
+        d.unit = "Hz";
+        d.hasFixedBinCount = true;
+        d.binCount = 1;
+        d.binNames.clear();
         d.hasKnownExtents = false;
         d.isQuantized = false;
         d.sampleType = OutputDescriptor::OneSamplePerStep;
@@ -1060,19 +1075,24 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
     if (m_processingMode == ModeRoughSpectrogram) {
 
         // already accumulated our return values in feature
+        fs[0].push_back(feature);
 
     } else if (m_processingMode == ModeSpectrogram) {
 
         for (int i = 0; i < m_warp_params.nsamps_twarp/2+1; i++) {
             feature.values.push_back(pow(10.0, m_absFanChirpTransform[ind_max_glogs * (m_warp_params.nsamps_twarp/2+1) + i]) - 1.0);
         }
+        fs[0].push_back(feature);
 
     } else { // f0gram
 
+        int bestIndex = -1;
+        
         for (int i=m_glogs_init_f0s; i< m_glogs_num_f0s - m_f0_params.num_f0s_per_oct; i++) {
+            double value = 0.0;
             switch (m_f0gram_mode) {
             case AllBinsOfBestDirection:
-                feature.values.push_back((float)m_glogs[i+(int)ind_max_glogs*(int)m_glogs_num_f0s]);
+                value = m_glogs[i+(int)ind_max_glogs*(int)m_glogs_num_f0s];
                 break;
             case BestBinOfAllDirections:
                 max_glogs = -DBL_MAX;
@@ -1082,13 +1102,32 @@ FChTransformF0gram::process(const float *const *inputBuffers, Vamp::RealTime) {
                         ind_max_glogs = i_warp;
                     }
                 }
-                feature.values.push_back((float)max_glogs);
+                value = max_glogs;
                 break;
+            }
+            if (bestIndex < 0 || float(value) > feature.values[bestIndex]) {
+                bestIndex = int(feature.values.size());
+            }
+            feature.values.push_back(float(value));
+        }
+        
+        fs[0].push_back(feature);
+
+        if (bestIndex >= 0) {
+
+            double bestValue = feature.values[bestIndex];
+            set<double> ordered(feature.values.begin(), feature.values.end());
+            vector<double> flattened(ordered.begin(), ordered.end());
+            double median = flattened[flattened.size()/2];
+            if (bestValue > median * 8.0) {
+                Feature pfeature;
+                pfeature.hasTimestamp = false;
+                pfeature.values.push_back(m_f0s[bestIndex]);
+                fs[1].push_back(pfeature);
             }
         }
     }
 
-    fs[0].push_back(feature);
     return fs;
 }
 
