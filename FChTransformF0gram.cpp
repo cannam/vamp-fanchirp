@@ -615,11 +615,7 @@ FChTransformF0gram::design_GLogS() {
     double aux_pos;
     for (int i = 0; i < m_glogs_num_f0s; i++) {
         for (int j = 1; j <= m_glogs_n[i]; j++) {
-            // indice en el vector de largo t_warp/2+1 donde el ultimo valor corresponde a f=m_fmax
-            aux_pos = ((double)j*m_glogs_f0[i])*((double)(m_warp_params.nsamps_twarp/2+1))/m_fmax;
-//!!!            cerr << "aux_pos = " << aux_pos << endl;
-//            aux_pos = ((double)j*m_glogs_f0[i])*((double)(m_warp_params.nsamps_twarp/2+1))/m_warpings.fs_warp;
-//            cerr << "or " << aux_pos << " (as fs_warp = " << m_warpings.fs_warp << ")" << endl;
+            aux_pos = ((double)j * m_glogs_f0[i]) * ((double)(m_warp_params.nsamps_twarp))/m_warpings.fs_warp;
             m_glogs_posint[aux_index] = (int)aux_pos;
             m_glogs_posfrac[aux_index] = aux_pos - (double)m_glogs_posint[aux_index];
             aux_index++;
