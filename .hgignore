@@ -4,3 +4,9 @@ syntax: glob
 *.o
 *.log
 glob:.repoint*
+.vs
+Debug
+Release
+x64
+*.user
+*.filters
