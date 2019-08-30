@@ -16,7 +16,7 @@
 	},
         "bqvec": {
             "vcs": "hg",
-            "service": "bitbucket",
+            "service": "sourcehut",
             "owner": "breakfastquay"
         }
     }
