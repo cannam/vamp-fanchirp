@@ -260,7 +260,7 @@ FChTransformF0gram::getParameterDescriptors() const {
     alpha_max.unit = "Hz/s";
     alpha_max.minValue = -10;
     alpha_max.maxValue = 10;
-    alpha_max.defaultValue = 5;
+    alpha_max.defaultValue = 4;
     alpha_max.isQuantized = true;
     alpha_max.quantizeStep = 1.0;
     list.push_back(alpha_max);
@@ -284,7 +284,7 @@ FChTransformF0gram::getParameterDescriptors() const {
     alpha_dist.unit = "";
     alpha_dist.minValue = 0;
     alpha_dist.maxValue = 1;
-    alpha_dist.defaultValue = 1;
+    alpha_dist.defaultValue = 0;
     alpha_dist.isQuantized = true;
     alpha_dist.quantizeStep = 1.0;
     // lin (0), log (1)
