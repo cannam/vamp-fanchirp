@@ -169,7 +169,7 @@ FChTransformF0gram::getPluginVersion() const {
     // differently from the previous one
     //
     // 0 - initial version from scratch
-    return 1;
+    return 2;
 }
 
 string
